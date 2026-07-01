@@ -32,11 +32,10 @@ to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
-create policy "Service role can manage contact messages"
+create policy "Anyone can create contact messages"
 on public.contact_messages
-for all
-to service_role
-using (true)
+for insert
+to anon, authenticated
 with check (true);
 
 create or replace function public.handle_new_user()

@@ -5,7 +5,7 @@ VSPHERE is a Next.js app wired for Supabase Auth, Supabase Postgres, a protected
 ## Setup
 
 1. Copy `.env.example` to `.env.local`.
-2. Fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+2. Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 3. Run the SQL in `supabase/schema.sql` inside the Supabase SQL Editor.
 4. In Supabase Auth providers, enable GitHub and Google.
 5. Add this redirect URL in Supabase Auth URL settings:

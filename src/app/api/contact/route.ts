@@ -16,16 +16,16 @@ export async function POST(request: Request) {
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json(
-      { message: "Supabase 서버 환경변수가 아직 설정되지 않았습니다." },
+      { message: "Supabase 환경변수가 아직 설정되지 않았습니다." },
       { status: 500 },
     );
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
   });
 
