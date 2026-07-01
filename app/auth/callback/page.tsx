@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SiteHeader } from "@/components/site-header";
 import { supabase } from "@/lib/supabase";
 
 export default function AuthCallbackPage() {
@@ -32,12 +33,15 @@ export default function AuthCallbackPage() {
   }, []);
 
   return (
-    <main className="admin-page">
-      <section className="admin-shell auth-shell">
-        <p className="eyebrow">AUTH CALLBACK</p>
-        <h1>{message}</h1>
-        <Link className="ghost-button" href="/boards">게시판으로 이동</Link>
-      </section>
-    </main>
+    <>
+      <SiteHeader />
+      <main className="admin-page">
+        <section className="admin-shell auth-shell">
+          <p className="eyebrow">AUTH CALLBACK</p>
+          <h1>{message}</h1>
+          <Link className="ghost-button" href="/boards">게시판으로 이동</Link>
+        </section>
+      </main>
+    </>
   );
 }
