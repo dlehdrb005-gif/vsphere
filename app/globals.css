@@ -39,7 +39,9 @@ a {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -603,7 +605,9 @@ main {
   font-weight: 800;
 }
 
-.admin-login-form input {
+.admin-login-form input,
+.admin-login-form select,
+.admin-login-form textarea {
   min-height: 44px;
   padding: 0 14px;
   color: var(--text);
@@ -613,7 +617,15 @@ main {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.admin-login-form input:focus {
+.admin-login-form textarea {
+  min-height: 180px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.admin-login-form input:focus,
+.admin-login-form select:focus,
+.admin-login-form textarea:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 0 3px rgba(53, 217, 244, 0.14);
 }
@@ -622,6 +634,10 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.auth-provider-row {
+  margin-top: 18px;
 }
 
 .form-error {
@@ -645,6 +661,67 @@ main {
   margin: 0;
   color: var(--muted);
   line-height: 1.65;
+}
+
+.post-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.post-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.post-card:hover {
+  border-color: rgba(53, 217, 244, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.post-card span {
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.post-card strong {
+  font-size: 20px;
+}
+
+.post-card p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.post-card small,
+.post-detail small {
+  color: var(--muted);
+}
+
+.post-detail h1 {
+  margin-bottom: 10px;
+}
+
+.post-content {
+  margin: 28px 0;
+  white-space: pre-wrap;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+.post-actions {
+  margin-bottom: 18px;
 }
 
 .site-footer {

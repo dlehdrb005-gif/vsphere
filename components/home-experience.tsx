@@ -63,7 +63,7 @@ export function HomeExperience({ clips, contents, heroSlides }: HomeExperiencePr
         <nav className="top-nav" aria-label="주요 메뉴">
           <a href="#clips">클립</a>
           <a href="#contents">콘텐츠</a>
-          <a href="#boards">게시판</a>
+          <Link href="/boards">게시판</Link>
           <a href="#notice">공지</a>
         </nav>
         <div className="header-actions">
@@ -76,12 +76,12 @@ export function HomeExperience({ clips, contents, heroSlides }: HomeExperiencePr
               placeholder="스트리머, 클립, 태그 검색"
             />
           </label>
-          <button className="ghost-button" type="button">
+          <Link className="ghost-button" href="/login">
             로그인
-          </button>
-          <button className="primary-button" type="button">
+          </Link>
+          <Link className="primary-button" href="/signup">
             회원가입
-          </button>
+          </Link>
         </div>
       </header>
 
@@ -240,9 +240,9 @@ export function HomeExperience({ clips, contents, heroSlides }: HomeExperiencePr
             <p>자유게시판, 클립, 콘텐츠 홍보, 공지를 중심으로 구성합니다.</p>
           </div>
           <div className="board-toolbar">
-            <button className="primary-button" type="button">
+            <Link className="primary-button" href="/write">
               글쓰기
-            </button>
+            </Link>
             <button className="ghost-button" type="button">
               이미지 업로드
             </button>
