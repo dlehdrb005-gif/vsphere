@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VSPHERE | A World for VTubers</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#home" aria-label="VSPHERE home">
+        <span class="brand-mark">V</span>
+        <span>
+          <strong>VSPHERE</strong>
+          <small>SOOP VTUBER SUPPORT PROJECT</small>
+        </span>
+      </a>
+      <nav class="top-nav" aria-label="주요 메뉴">
+        <a href="#clips">클립</a>
+        <a href="#contents">콘텐츠</a>
+        <a href="#boards">게시판</a>
+        <a href="#notice">공지</a>
+        <a class="admin-only is-hidden" href="#admin">관리자</a>
+      </nav>
+      <div class="header-actions">
+        <label class="search-box">
+          <span>검색</span>
+          <input id="globalSearch" type="search" placeholder="스트리머, 클립, 콘텐츠 검색" />
+        </label>
+        <span class="user-status" id="userStatus">비회원</span>
+        <button class="ghost-button" id="loginButton" type="button">로그인</button>
+        <button class="primary-button" id="signupButton" type="button">회원가입</button>
+        <button class="ghost-button is-hidden" id="logoutButton" type="button">로그아웃</button>
+      </div>
+    </header>
+
+    <main id="home">
+      <section class="hero" aria-label="운영자 Pick 히어로">
+        <div class="hero-copy">
+          <p class="eyebrow">OPERATOR PICK</p>
+          <h1 id="heroTitle">버튜버 콘텐츠가 모이는 VSPHERE</h1>
+          <p id="heroText">
+            숲 버추얼 스트리머의 진행중 콘텐츠, 예정 일정, 하이라이트 클립을 한곳에서 찾는 큐레이션 허브.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-button" href="#clips">클립 둘러보기</a>
+            <a class="ghost-button" href="#contents">예정 콘텐츠</a>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="orb">
+            <span class="orb-letter">V</span>
+          </div>
+          <div class="signal-card">
+            <span>LIVE SIGNAL</span>
+            <strong id="heroSignal">이번 주 합방/이벤트 집중 홍보</strong>
+          </div>
+        </div>
+        <div class="hero-tabs" role="tablist" aria-label="히어로 슬라이드">
+          <button class="hero-tab active" type="button" data-slide="0">Pick 01</button>
+          <button class="hero-tab" type="button" data-slide="1">Pick 02</button>
+          <button class="hero-tab" type="button" data-slide="2">Pick 03</button>
+        </div>
+      </section>
+
+      <section class="quick-stats" aria-label="사이트 현황">
+        <article>
+          <span>저장된 클립</span>
+          <strong>0</strong>
+        </article>
+        <article>
+          <span>예정 콘텐츠</span>
+          <strong>0</strong>
+        </article>
+        <article>
+          <span>인증 스트리머</span>
+          <strong>0</strong>
+        </article>
+        <article>
+          <span>운영자 Pick</span>
+          <strong>준비중</strong>
+        </article>
+      </section>
+
+      <section id="clips" class="section-grid">
+        <div class="section-heading">
+          <p class="eyebrow">CLIP ARCHIVE</p>
+          <h2>클립 저장소</h2>
+          <p>버튜버 생태계의 클립을 스트리머명, 태그, 카테고리로 단순하게 찾습니다.</p>
+        </div>
+        <div class="filter-bar" aria-label="클립 필터">
+          <button class="filter-chip active" type="button" data-filter="all">전체</button>
+          <button class="filter-chip" type="button" data-filter="funny">웃긴장면</button>
+          <button class="filter-chip" type="button" data-filter="sing">노래</button>
+          <button class="filter-chip" type="button" data-filter="collab">합방</button>
+          <button class="filter-chip" type="button" data-filter="issue">이슈</button>
+        </div>
+        <div class="clip-grid" id="clipGrid"></div>
+      </section>
+
+      <section id="contents" class="two-column">
+        <div>
+          <div class="section-heading compact">
+            <p class="eyebrow">CONTENTS</p>
+            <h2>진행중/예정 콘텐츠</h2>
+          </div>
+          <div class="content-list" id="contentList"></div>
+        </div>
+        <aside class="notice-panel" id="notice">
+          <div class="section-heading compact">
+            <p class="eyebrow">NOTICE</p>
+            <h2>공지사항</h2>
+          </div>
+          <article class="notice important">
+            <span>중요</span>
+            <strong>클립 업로드 가이드 개정 안내</strong>
+            <p>영상 출처, 스트리머명, 태그를 필수로 입력해주세요.</p>
+          </article>
+          <article class="notice pinned">
+            <span>고정</span>
+            <strong>VSPHERE 베타 운영 정책</strong>
+            <p>신고 누적 게시글은 관리자 확인 전까지 임시 숨김 처리됩니다.</p>
+          </article>
+        </aside>
+      </section>
+
+      <section id="boards" class="board-section">
+        <div class="section-heading">
+          <p class="eyebrow">COMMUNITY</p>
+          <h2>게시판</h2>
+          <p>초기 운영 부담을 줄이기 위해 자유게시판, 클립, 콘텐츠 홍보, 공지 중심으로 구성합니다.</p>
+        </div>
+        <div class="board-toolbar">
+          <button class="primary-button" id="writePostButton" type="button">글쓰기</button>
+          <button class="ghost-button" type="button">이미지 업로드</button>
+          <button class="ghost-button" type="button">신고 내역</button>
+        </div>
+        <div class="board-table" role="table" aria-label="최신 게시글">
+          <div class="board-row board-head" role="row">
+            <span>분류</span>
+            <span>제목</span>
+            <span>작성자</span>
+            <span>추천</span>
+            <span>조회</span>
+          </div>
+          <div id="boardRows"></div>
+        </div>
+      </section>
+
+      <section id="admin" class="admin-section admin-only is-hidden">
+        <div class="section-heading">
+          <p class="eyebrow">ADMIN CONSOLE</p>
+          <h2>1인 운영 관리자 우선 기능</h2>
+          <p>게시글 관리, 신고 처리, 공지 작성, 배너 관리처럼 운영자가 매일 쓰는 기능을 먼저 배치합니다.</p>
+        </div>
+        <div class="admin-grid">
+          <article>
+            <span>회원관리</span>
+            <strong>권한 변경 / 정지</strong>
+            <p>일반회원, 인증 스트리머, 관리자 권한을 빠르게 조정합니다.</p>
+          </article>
+          <article>
+            <span>게시글 관리</span>
+            <strong>숨김 / 삭제 / 고정</strong>
+            <p>문제가 되는 글은 목록에서 즉시 숨김 처리합니다.</p>
+          </article>
+          <article>
+            <span>신고 관리</span>
+            <strong>접수 / 확인중 / 완료</strong>
+            <p>신고 상태를 단순한 3단계로 유지합니다.</p>
+          </article>
+          <article>
+            <span>배너 관리</span>
+            <strong>운영자 Pick 편집</strong>
+            <p>히어로 슬라이드와 메인 배너 순서를 관리합니다.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <strong>VSPHERE</strong>
+      <span>A world for VTubers. Built for archive, discovery, and support.</span>
+    </footer>
+
+    <dialog class="modal" id="authModal">
+      <form class="modal-card" id="authForm" method="dialog">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">ACCOUNT</p>
+            <h2 id="authTitle">로그인</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="button" data-close-modal>×</button>
+        </div>
+        <label>
+          아이디
+          <input id="authUsername" name="username" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          비밀번호
+          <input id="authPassword" name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="signup-only is-hidden" id="phoneVerification">
+          <label>
+            휴대폰 번호
+            <input id="authPhone" name="phone" type="tel" autocomplete="tel" placeholder="01012345678" />
+          </label>
+          <div class="verification-row">
+            <label>
+              인증번호
+              <input id="authCode" name="code" type="text" inputmode="numeric" maxlength="6" placeholder="6자리" />
+            </label>
+            <button class="ghost-button" id="sendCodeButton" type="button">인증번호 받기</button>
+            <button class="ghost-button" id="verifyCodeButton" type="button">확인</button>
+          </div>
+          <p class="verify-status" id="verifyStatus">휴대폰 인증이 필요합니다.</p>
+        </div>
+        <button class="google-button" id="googleLoginButton" type="button">
+          <span>G</span>
+          Google 계정으로 계속하기
+        </button>
+        <p class="form-help" id="authHelp">관리자 테스트 계정: admin / admin1234</p>
+        <div class="modal-actions">
+          <button class="ghost-button" type="button" data-close-modal>취소</button>
+          <button class="primary-button" type="submit">확인</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="postModal">
+      <form class="modal-card post-form" id="postForm" method="dialog">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">BOARD WRITE</p>
+            <h2>게시글 작성</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="button" data-close-modal>×</button>
+        </div>
+        <label>
+          분류
+          <select id="postCategory" required>
+            <option value="자유">자유</option>
+            <option value="클립">클립</option>
+            <option value="콘텐츠">콘텐츠</option>
+          </select>
+        </label>
+        <label>
+          제목
+          <input id="postTitle" type="text" maxlength="80" required placeholder="게시글 제목" />
+        </label>
+        <label>
+          내용
+          <textarea id="postBody" rows="6" required placeholder="내용을 입력하세요"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button class="ghost-button" type="button" data-close-modal>취소</button>
+          <button class="primary-button" type="submit">등록</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="script.js"></script>
+  </body>
+</html>
