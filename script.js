@@ -6,17 +6,17 @@ const STORAGE_KEYS = {
 const heroSlides = [
   {
     title: "버튜버 콘텐츠가 모이는 VSPHERE",
-    text: "숲 버추얼 스트리머의 진행중 콘텐츠, 예정 일정, 하이라이트 클립을 한곳에서 찾는 큐레이션 허브.",
+    text: "SOOP 버추얼 스트리머의 진행중 콘텐츠, 예정 일정, 하이라이트 클립을 한곳에서 찾는 큐레이션 허브.",
     signal: "이번 주 합방/이벤트 집중 홍보",
   },
   {
     title: "클립을 저장하고 빠르게 찾는 아카이브",
     text: "스트리머명, 태그, 카테고리 중심 검색으로 흩어진 클립을 단순하게 정리합니다.",
-    signal: "클립 저장소 베타 오픈",
+    signal: "클립 저장소 준비중",
   },
   {
     title: "1인 운영에 맞춘 가벼운 관리자 콘솔",
-    text: "공지, 신고, 배너, 콘텐츠 등록을 우선 배치해 운영자가 매일 쓰는 기능부터 챙깁니다.",
+    text: "공지, 신고, 배너, 콘텐츠 등록처럼 운영자가 매일 쓰는 기능부터 차근차근 배치합니다.",
     signal: "운영자 Pick 슬라이드 관리",
   },
 ];
@@ -58,9 +58,25 @@ const postCategory = document.querySelector("#postCategory");
 const postTitle = document.querySelector("#postTitle");
 const postBody = document.querySelector("#postBody");
 
+const recaptchaContainer = document.createElement("div");
+recaptchaContainer.id = "recaptchaContainer";
+verifyStatus.before(recaptchaContainer);
+
+const firebaseConfig = window.VSPHERE_FIREBASE_CONFIG ?? {};
+const adminEmails = (window.VSPHERE_ADMIN_EMAILS ?? []).map((email) => email.toLowerCase());
+const firebaseConfigured = Boolean(
+  window.firebase &&
+    firebaseConfig.apiKey &&
+    !firebaseConfig.apiKey.startsWith("PASTE_") &&
+    firebaseConfig.authDomain &&
+    !firebaseConfig.authDomain.startsWith("PASTE_"),
+);
+
 let authMode = "login";
-let pendingPhoneCode = "";
-let isPhoneVerified = false;
+let auth = null;
+let googleProvider = null;
+let recaptchaVerifier = null;
+let confirmationResult = null;
 
 function readStorage(key, fallback) {
   try {
@@ -97,7 +113,7 @@ function setPosts(posts) {
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, (char) => {
+  return String(value).replace(/[&<>"']/g, (char) => {
     const entities = {
       "&": "&amp;",
       "<": "&lt;",
@@ -107,6 +123,67 @@ function escapeHtml(value) {
     };
     return entities[char];
   });
+}
+
+function showAuthMessage(message, type = "") {
+  authHelp.textContent = message;
+  authHelp.className = `form-help ${type}`.trim();
+}
+
+function showPhoneMessage(message, type = "") {
+  verifyStatus.textContent = message;
+  verifyStatus.className = `verify-status ${type}`.trim();
+}
+
+function getRole(email) {
+  return email && adminEmails.includes(email.toLowerCase()) ? "admin" : "member";
+}
+
+function toUser(firebaseUser) {
+  const email = firebaseUser.email ?? "";
+  const name = firebaseUser.displayName || email || firebaseUser.phoneNumber || "회원";
+
+  return {
+    uid: firebaseUser.uid,
+    name,
+    email,
+    phone: firebaseUser.phoneNumber ?? "",
+    provider: firebaseUser.providerData?.[0]?.providerId ?? "firebase",
+    role: getRole(email),
+  };
+}
+
+function initFirebaseAuth() {
+  if (!firebaseConfigured) {
+    localStorage.removeItem(STORAGE_KEYS.user);
+    renderAuthState();
+    return;
+  }
+
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  googleProvider = new firebase.auth.GoogleAuthProvider();
+  auth.onAuthStateChanged((firebaseUser) => {
+    setCurrentUser(firebaseUser ? toUser(firebaseUser) : null);
+  });
+}
+
+function requireFirebaseAuth() {
+  if (firebaseConfigured && auth) {
+    return true;
+  }
+
+  showAuthMessage("Firebase 설정값이 아직 없습니다. firebase-config.js에 실제 프로젝트 설정을 넣어야 로그인과 휴대폰 인증이 작동합니다.", "error");
+  showPhoneMessage("Firebase 설정 후 실제 SMS 인증을 사용할 수 있습니다.", "error");
+  return false;
+}
+
+function formatKoreanPhoneNumber(rawPhone) {
+  const digits = rawPhone.replace(/\D/g, "");
+  if (!/^01[016789]\d{7,8}$/.test(digits)) {
+    return "";
+  }
+  return `+82${digits.slice(1)}`;
 }
 
 function setHeroSlide(index) {
@@ -134,19 +211,31 @@ function renderAuthState() {
 
 function openAuthModal(mode) {
   authMode = mode;
-  pendingPhoneCode = "";
-  isPhoneVerified = false;
+  confirmationResult = null;
   authTitle.textContent = mode === "signup" ? "회원가입" : "로그인";
-  authHelp.textContent =
-    mode === "signup"
-      ? "휴대폰 인증 후 일반회원으로 가입됩니다. 이 시안에서는 인증번호가 화면에 표시됩니다."
-      : "관리자 테스트 계정: admin / admin1234";
   phoneVerification.classList.toggle("is-hidden", mode !== "signup");
-  verifyStatus.textContent = "휴대폰 인증이 필요합니다.";
-  verifyStatus.className = "verify-status";
+  authUsername.required = mode === "login";
+  authPassword.required = mode === "login";
   authForm.reset();
+
+  if (mode === "signup") {
+    showAuthMessage("구글 계정으로 가입하거나, 휴대폰 번호로 SMS 인증을 완료하세요.");
+    showPhoneMessage("휴대폰 번호를 입력하면 실제 인증 문자가 발송됩니다.");
+  } else {
+    showAuthMessage("구글 로그인 또는 Firebase 이메일/비밀번호 로그인을 사용할 수 있습니다.");
+    showPhoneMessage("");
+  }
+
+  if (!firebaseConfigured) {
+    showAuthMessage("Firebase 설정값이 아직 없습니다. firebase-config.js 설정 후 실제 인증이 켜집니다.", "error");
+  }
+
   authModal.showModal();
-  authUsername.focus();
+  if (mode === "signup") {
+    authPhone.focus();
+  } else {
+    authUsername.focus();
+  }
 }
 
 function closeModal(modal) {
@@ -266,6 +355,26 @@ function createPost() {
   postTitle.focus();
 }
 
+function ensureRecaptchaVerifier() {
+  if (recaptchaVerifier) {
+    return recaptchaVerifier;
+  }
+
+  recaptchaVerifier = new firebase.auth.RecaptchaVerifier("recaptchaContainer", {
+    size: "normal",
+    callback: () => {
+      showPhoneMessage("reCAPTCHA 확인 완료. 인증번호를 받을 수 있습니다.", "success");
+    },
+    "expired-callback": () => {
+      showPhoneMessage("reCAPTCHA가 만료되었습니다. 다시 확인해 주세요.", "error");
+      recaptchaVerifier = null;
+      recaptchaContainer.innerHTML = "";
+    },
+  });
+
+  return recaptchaVerifier;
+}
+
 heroTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     setHeroSlide(Number(tab.dataset.slide));
@@ -287,50 +396,91 @@ globalSearch.addEventListener("input", () => {
 
 loginButton.addEventListener("click", () => openAuthModal("login"));
 signupButton.addEventListener("click", () => openAuthModal("signup"));
-logoutButton.addEventListener("click", () => setCurrentUser(null));
+logoutButton.addEventListener("click", async () => {
+  if (auth?.currentUser) {
+    await auth.signOut();
+    return;
+  }
+  setCurrentUser(null);
+});
 writePostButton.addEventListener("click", createPost);
 
-sendCodeButton.addEventListener("click", () => {
-  const phone = authPhone.value.trim();
-
-  if (!/^01[016789]\d{7,8}$/.test(phone)) {
-    verifyStatus.textContent = "휴대폰 번호를 숫자만 입력해주세요. 예: 01012345678";
-    verifyStatus.className = "verify-status error";
+sendCodeButton.addEventListener("click", async () => {
+  if (!requireFirebaseAuth()) {
     return;
   }
 
-  pendingPhoneCode = String(Math.floor(100000 + Math.random() * 900000));
-  isPhoneVerified = false;
-  verifyStatus.textContent = `인증번호가 발급되었습니다. 테스트 인증번호: ${pendingPhoneCode}`;
-  verifyStatus.className = "verify-status pending";
-  authCode.focus();
+  const phoneNumber = formatKoreanPhoneNumber(authPhone.value);
+  if (!phoneNumber) {
+    showPhoneMessage("휴대폰 번호를 숫자로 입력해 주세요. 예: 01012345678", "error");
+    return;
+  }
+
+  sendCodeButton.disabled = true;
+  showPhoneMessage("인증 문자를 발송하는 중입니다. reCAPTCHA 확인이 필요할 수 있습니다.", "pending");
+
+  try {
+    confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, ensureRecaptchaVerifier());
+    showPhoneMessage("문자로 받은 6자리 인증번호를 입력하고 확인을 눌러 주세요.", "success");
+    authCode.focus();
+  } catch (error) {
+    showPhoneMessage(`SMS 인증 요청 실패: ${error.message}`, "error");
+    if (recaptchaVerifier) {
+      recaptchaVerifier.clear();
+      recaptchaVerifier = null;
+      recaptchaContainer.innerHTML = "";
+    }
+  } finally {
+    sendCodeButton.disabled = false;
+  }
 });
 
-verifyCodeButton.addEventListener("click", () => {
-  if (!pendingPhoneCode) {
-    verifyStatus.textContent = "먼저 인증번호를 받아주세요.";
-    verifyStatus.className = "verify-status error";
+verifyCodeButton.addEventListener("click", async () => {
+  if (!requireFirebaseAuth()) {
     return;
   }
 
-  if (authCode.value.trim() !== pendingPhoneCode) {
-    verifyStatus.textContent = "인증번호가 일치하지 않습니다.";
-    verifyStatus.className = "verify-status error";
+  if (!confirmationResult) {
+    showPhoneMessage("먼저 인증번호 받기를 눌러 주세요.", "error");
     return;
   }
 
-  isPhoneVerified = true;
-  verifyStatus.textContent = "휴대폰 인증이 완료되었습니다.";
-  verifyStatus.className = "verify-status success";
+  const code = authCode.value.trim();
+  if (!/^\d{6}$/.test(code)) {
+    showPhoneMessage("문자로 받은 6자리 숫자를 입력해 주세요.", "error");
+    return;
+  }
+
+  verifyCodeButton.disabled = true;
+  try {
+    const result = await confirmationResult.confirm(code);
+    setCurrentUser(toUser(result.user));
+    showPhoneMessage("휴대폰 인증과 회원가입이 완료되었습니다.", "success");
+    closeModal(authModal);
+  } catch (error) {
+    showPhoneMessage(`인증번호 확인 실패: ${error.message}`, "error");
+  } finally {
+    verifyCodeButton.disabled = false;
+  }
 });
 
-googleLoginButton.addEventListener("click", () => {
-  setCurrentUser({
-    name: "google_user",
-    role: "member",
-    provider: "google",
-  });
-  closeModal(authModal);
+googleLoginButton.addEventListener("click", async () => {
+  if (!requireFirebaseAuth()) {
+    return;
+  }
+
+  googleLoginButton.disabled = true;
+  showAuthMessage("Google 로그인 창을 여는 중입니다.");
+
+  try {
+    const result = await auth.signInWithPopup(googleProvider);
+    setCurrentUser(toUser(result.user));
+    closeModal(authModal);
+  } catch (error) {
+    showAuthMessage(`Google 로그인 실패: ${error.message}`, "error");
+  } finally {
+    googleLoginButton.disabled = false;
+  }
 });
 
 document.querySelectorAll("[data-close-modal]").forEach((button) => {
@@ -340,32 +490,33 @@ document.querySelectorAll("[data-close-modal]").forEach((button) => {
   });
 });
 
-authForm.addEventListener("submit", (event) => {
+authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const name = authUsername.value.trim();
+  if (!requireFirebaseAuth()) {
+    return;
+  }
+
+  if (authMode === "signup") {
+    showPhoneMessage("휴대폰 가입은 인증번호 받기와 확인 버튼으로 완료됩니다.", "pending");
+    return;
+  }
+
+  const email = authUsername.value.trim();
   const password = authPassword.value.trim();
 
-  if (!name || !password) {
+  if (!email || !password) {
+    showAuthMessage("이메일과 비밀번호를 입력해 주세요.", "error");
     return;
   }
 
-  if (authMode === "signup" && !isPhoneVerified) {
-    verifyStatus.textContent = "회원가입을 완료하려면 휴대폰 인증을 먼저 해주세요.";
-    verifyStatus.className = "verify-status error";
-    return;
+  try {
+    const result = await auth.signInWithEmailAndPassword(email, password);
+    setCurrentUser(toUser(result.user));
+    closeModal(authModal);
+  } catch (error) {
+    showAuthMessage(`로그인 실패: ${error.message}`, "error");
   }
-
-  const isAdminLogin = authMode === "login" && name === "admin" && password === "admin1234";
-  const user = {
-    name,
-    role: isAdminLogin ? "admin" : "member",
-    phone: authMode === "signup" ? authPhone.value.trim() : "",
-    provider: "password",
-  };
-
-  setCurrentUser(user);
-  closeModal(authModal);
 });
 
 postForm.addEventListener("submit", (event) => {
@@ -399,6 +550,7 @@ setInterval(() => {
   setHeroSlide(activeSlide);
 }, 6200);
 
+initFirebaseAuth();
 renderAuthState();
 renderClips();
 renderContents();

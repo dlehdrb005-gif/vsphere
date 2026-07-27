@@ -753,11 +753,24 @@ main {
   line-height: 1.6;
 }
 
+.form-help.error {
+  color: #ff9bad;
+}
+
+.form-help.success {
+  color: var(--green);
+}
+
 .verify-status {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+#recaptchaContainer {
+  min-height: 0;
+  overflow-x: auto;
 }
 
 .verify-status.pending {
