@@ -51,13 +51,95 @@ textarea {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 20px;
   align-items: center;
   padding: 14px clamp(16px, 4vw, 48px);
   border-bottom: 1px solid var(--line);
   background: rgba(6, 8, 18, 0.82);
   backdrop-filter: blur(18px);
+}
+
+.sidebar-toggle,
+.sidebar-close {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.sidebar-toggle:hover,
+.sidebar-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-toggle:focus-visible,
+.sidebar-close:focus-visible,
+.site-sidebar a:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.sidebar-backdrop:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.site-sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  width: min(300px, 86vw);
+  padding: 20px;
+  border-right: 1px solid var(--line);
+  background: #101626;
+  box-shadow: var(--shadow);
+  transform: translateX(-105%);
+  transition: transform 0.22s ease;
+}
+
+.site-sidebar.is-open {
+  transform: translateX(0);
+}
+
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 34px;
+  font-size: 18px;
+}
+
+.site-sidebar h2 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.site-sidebar a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 16px;
+}
+
+.site-sidebar a:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 217, 244, 0.08);
 }
 
 .brand {
@@ -817,7 +899,12 @@ main {
 
 @media (max-width: 1020px) {
   .site-header {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto 1fr;
+  }
+
+  .top-nav,
+  .header-actions {
+    grid-column: 1 / -1;
   }
 
   .top-nav {

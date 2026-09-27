@@ -8,6 +8,7 @@
   </head>
   <body>
     <header class="site-header">
+      <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="사이드 메뉴 열기" aria-controls="siteSidebar" aria-expanded="false">☰</button>
       <a class="brand" href="#home" aria-label="VSPHERE home">
         <span class="brand-mark">V</span>
         <span>
@@ -33,6 +34,18 @@
         <button class="ghost-button is-hidden" id="logoutButton" type="button">로그아웃</button>
       </div>
     </header>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+    <aside class="site-sidebar" id="siteSidebar" aria-label="사이드 메뉴" aria-hidden="true" inert>
+      <div class="sidebar-heading">
+        <strong>메뉴</strong>
+        <button class="sidebar-close" id="sidebarClose" type="button" aria-label="사이드 메뉴 닫기">×</button>
+      </div>
+      <nav aria-label="빅타민놀이터">
+        <h2>빅타민놀이터</h2>
+        <a href="https://suika-score-party.dlehdrb001.chatgpt.site/">수박게임 <span aria-hidden="true">↗</span></a>
+      </nav>
+    </aside>
 
     <main id="home">
       <section class="hero" aria-label="운영자 Pick 히어로">

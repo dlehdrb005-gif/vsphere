@@ -3,6 +3,29 @@ const STORAGE_KEYS = {
   posts: "vsphere:posts",
 };
 
+const sidebarToggle = document.querySelector("#sidebarToggle");
+const sidebarClose = document.querySelector("#sidebarClose");
+const siteSidebar = document.querySelector("#siteSidebar");
+const sidebarBackdrop = document.querySelector("#sidebarBackdrop");
+
+function setSidebarOpen(open) {
+  siteSidebar.classList.toggle("is-open", open);
+  siteSidebar.inert = !open;
+  siteSidebar.setAttribute("aria-hidden", String(!open));
+  sidebarToggle.setAttribute("aria-expanded", String(open));
+  sidebarToggle.setAttribute("aria-label", open ? "사이드 메뉴 닫기" : "사이드 메뉴 열기");
+  sidebarBackdrop.hidden = !open;
+  document.body.style.overflow = open ? "hidden" : "";
+  (open ? sidebarClose : sidebarToggle).focus();
+}
+
+sidebarToggle.addEventListener("click", () => setSidebarOpen(!siteSidebar.classList.contains("is-open")));
+sidebarClose.addEventListener("click", () => setSidebarOpen(false));
+sidebarBackdrop.addEventListener("click", () => setSidebarOpen(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && siteSidebar.classList.contains("is-open")) setSidebarOpen(false);
+});
+
 const heroSlides = [
   {
     title: "버튜버 콘텐츠가 모이는 VSPHERE",
