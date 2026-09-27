@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>수박게임 | 빅타민놀이터 | VSPHERE</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body { color: #f5f7fb; background: #060812; font-family: Pretendard, "Noto Sans KR", system-ui, sans-serif; }
+      header { display: flex; align-items: center; gap: 18px; min-height: 64px; padding: 10px clamp(16px, 4vw, 48px); border-bottom: 1px solid rgba(255,255,255,.11); background: #101626; }
+      header a { color: #aeeefa; text-decoration: none; font-size: 15px; }
+      header a:focus-visible { outline: 2px solid #35d9f4; outline-offset: 4px; }
+      header strong { font-size: 16px; }
+      iframe { display: block; width: 100%; height: calc(100dvh - 64px); min-height: 600px; border: 0; background: #f7f9f2; }
+      @media (max-width: 640px) { header { min-height: 58px; gap: 12px; } iframe { height: calc(100dvh - 58px); min-height: 0; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="/" aria-label="브이스피어 홈으로 돌아가기">← VSPHERE</a>
+      <strong>빅타민놀이터 · 수박게임</strong>
+    </header>
+    <iframe
+      title="수박게임 플레이 화면"
+      src="https://suika-score-party.dlehdrb001.chatgpt.site/"
+      allow="clipboard-write"
+      loading="eager"
+    ></iframe>
+  </body>
+</html>
