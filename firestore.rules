@@ -15,17 +15,23 @@ service cloud.firestore {
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.createdAt == request.time;
     }
+    function owner() { return signedIn() && resource.data.authorUid == request.auth.uid; }
+    function validEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'body'])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 3000;
+    }
     match /notices/{id} {
       allow read: if true;
       allow create: if admin() && validEntry();
       allow delete: if admin();
-      allow update: if false;
+      allow update: if admin() && owner() && validEdit();
     }
     match /messages/{id} {
       allow read: if true;
       allow create: if signedIn() && validEntry();
-      allow delete: if admin();
-      allow update: if false;
+      allow delete: if owner() || admin();
+      allow update: if owner() && validEdit();
     }
   }
 }

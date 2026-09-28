@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const config = window.VSPHERE_FIREBASE_CONFIG;
 const adminEmail = (window.VSPHERE_ADMIN_EMAILS || [])[0]?.toLowerCase();
-let auth, db, currentUser = null, mode = 'login', postType = 'messages';
+let auth, db, currentUser = null, mode = 'login', postType = 'messages', editingPost = null;
 const ready = Boolean(window.firebase?.auth && window.firebase?.firestore && config?.apiKey);
 
 function setMenu(open) {
@@ -99,22 +99,32 @@ function renderEntries(target, snapshot, kind) {
   if (snapshot.empty) { setEmpty(target, kind === 'notices' ? '아직 등록된 공지가 없습니다.' : '아직 남겨진 글이 없습니다. 첫 글을 남겨주세요.'); return; }
   snapshot.forEach(doc => {
     const data = doc.data();
-    const article = document.createElement('article'); article.className = 'entry';
+    const article = document.createElement('details'); article.className = 'entry';
+    const summary = document.createElement('summary'); summary.className = 'entry-summary';
     const title = document.createElement('h3'); title.textContent = data.title;
     const body = document.createElement('p'); body.textContent = data.body;
+    body.className = 'entry-body';
     const meta = document.createElement('div'); meta.className = 'entry-meta';
     const author = document.createElement('span'); author.textContent = kind === 'notices' ? 'VSPHERE 운영자' : data.authorName;
     const date = document.createElement('time'); date.textContent = formatDate(data.createdAt);
     meta.append(author, date);
-    if (isAdmin()) {
+    summary.append(title, meta);
+    article.append(summary, body);
+    const ownsEntry = currentUser?.uid === data.authorUid;
+    if (ownsEntry) {
+      const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = '수정';
+      edit.addEventListener('click', () => openPost(kind, { id: doc.id, ...data }));
+      article.append(edit);
+    }
+    if (ownsEntry || isAdmin()) {
       const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '삭제';
       remove.addEventListener('click', async () => {
         if (!confirm('이 글을 삭제할까요?')) return;
         try { await db.collection(kind).doc(doc.id).delete(); } catch (error) { alert(friendlyError(error)); }
       });
-      meta.append(remove);
+      article.append(remove);
     }
-    article.append(title, body, meta); target.append(article);
+    target.append(article);
   });
 }
 let snapshots = {};
@@ -125,12 +135,15 @@ function subscribe(kind) {
     error => setEmpty(target, friendlyError(error))
   );
 }
-function openPost(kind) {
+function openPost(kind, entry = null) {
   if (!currentUser) { openAuth('signup'); return; }
+  if (entry && entry.authorUid !== currentUser.uid) return;
   if (kind === 'notices' && !isAdmin()) return;
-  postType = kind;
+  postType = kind; editingPost = entry;
   $('#postForm').reset(); $('#postError').textContent = '';
-  $('#postTitle').textContent = kind === 'notices' ? '공지 쓰기' : '글 남기기';
+  $('#postTitle').textContent = entry ? (kind === 'notices' ? '공지 수정' : '글 수정') : (kind === 'notices' ? '공지 쓰기' : '글 남기기');
+  $('#postSubmit').textContent = entry ? '수정 저장' : '등록하기';
+  if (entry) { $('#entryTitle').value = entry.title; $('#entryBody').value = entry.body; }
   $('#postDialog').showModal(); $('#entryTitle').focus();
 }
 $('#writeNotice').addEventListener('click', () => openPost('notices'));
@@ -142,7 +155,10 @@ $('#postForm').addEventListener('submit', async (event) => {
   try {
     const title = $('#entryTitle').value.trim(), body = $('#entryBody').value.trim();
     if (!title || !body) throw new Error('제목과 내용을 입력해 주세요.');
-    await db.collection(postType).add({
+    if (editingPost) {
+      if (editingPost.authorUid !== currentUser.uid) throw new Error('본인이 쓴 글만 수정할 수 있습니다.');
+      await db.collection(postType).doc(editingPost.id).update({ title, body });
+    } else await db.collection(postType).add({
       title, body, authorUid: currentUser.uid, authorName: displayName(currentUser),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
