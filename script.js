@@ -300,30 +300,37 @@ $('#profileForm').addEventListener('submit', async event => {
   if (!user) { $('#profileError').textContent = '다시 로그인해 주세요.'; return; }
   const name = $('#profileNickname').value.trim();
   if (!name || name.length > 20) { $('#profileError').textContent = '닉네임은 1~20자로 입력해 주세요.'; return; }
+  const photoChanged = Boolean(pendingProfilePhoto || removeProfilePhoto);
+  const photoData = removeProfilePhoto ? '' : pendingProfilePhoto?.data;
   lockProfile(true); $('#profileError').textContent = ''; $('#profileStatus').textContent = '저장하고 있습니다.';
-  let photoSaved = false;
+  const successes = [], errors = [];
   try {
-    if (pendingProfilePhoto || removeProfilePhoto) {
-      const photoData = removeProfilePhoto ? '' : pendingProfilePhoto.data;
-      await db.collection('profilePhotos').doc(user.uid).set({ photoData });
-      if (auth.currentUser?.uid !== user.uid) throw new Error('로그인 계정이 변경되었습니다. 다시 로그인해 주세요.');
-      savedPhotoRevision++;
-      savedPhoto = photoData;
-      photoSaved = true;
-      resetPendingPhoto();
-      refreshAccount(); showProfilePhoto(accountPhoto());
+    // Save independently: denied photo permissions must never block the nickname.
+    try {
+      await user.updateProfile({ displayName: name });
+      if (auth.currentUser?.uid !== user.uid) return;
+      currentUser = auth.currentUser; refreshAccount();
+      successes.push('닉네임을 저장했습니다.');
+      $('#profileStatus').textContent = successes.join(' ');
+    } catch (error) {
+      errors.push('닉네임: ' + (error.code ? friendlyError(error) : error.message));
     }
-    await user.updateProfile({ displayName: name });
-    if (auth.currentUser?.uid !== user.uid) return;
-    currentUser = auth.currentUser; refreshAccount();
-    $('#profileStatus').textContent = '변경사항을 저장했습니다.';
-  } catch (error) {
-    $('#profileStatus').textContent = '';
-    const reason = error.code === 'resource-exhausted'
-      ? '무료 사용량 한도에 도달했습니다. 나중에 다시 시도해 주세요.'
-      : error.code === 'permission-denied'
-        ? '사진 저장 권한 설정을 확인해 주세요.'
-        : (error.code ? friendlyError(error) : error.message);
-    $('#profileError').textContent = (photoSaved ? '사진은 저장됐지만 닉네임 변경에 실패했습니다. ' : '') + reason;
+    if (photoChanged && auth.currentUser?.uid === user.uid) {
+      try {
+        await db.collection('profilePhotos').doc(user.uid).set({ photoData });
+        if (auth.currentUser?.uid !== user.uid) return;
+        savedPhotoRevision++; savedPhoto = photoData;
+        resetPendingPhoto(); refreshAccount(); showProfilePhoto(accountPhoto());
+        successes.push('프로필 사진을 저장했습니다.');
+      } catch (error) {
+        errors.push(error.code === 'permission-denied'
+          ? '사진은 저장되지 않았습니다. 운영자의 사진 저장 권한 설정이 필요합니다.'
+          : error.code === 'resource-exhausted'
+            ? '사진은 저장되지 않았습니다. 무료 사용량 한도에 도달했습니다. 나중에 다시 시도해 주세요.'
+            : '사진은 저장되지 않았습니다. ' + (error.code ? friendlyError(error) : error.message));
+      }
+    }
+    $('#profileStatus').textContent = successes.join(' ');
+    $('#profileError').textContent = errors.join(' ');
   } finally { lockProfile(false); }
 });
