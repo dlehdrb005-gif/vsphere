@@ -21,6 +21,20 @@ service cloud.firestore {
         && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 80
         && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 3000;
     }
+    match /users/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['nickname', 'photoURL', 'photoPath', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['nickname', 'photoURL', 'photoPath', 'updatedAt'])
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() >= 2 && request.resource.data.nickname.size() <= 20
+        && (admin() || !(request.resource.data.nickname.lower() in ['관리자', '운영자', 'vsphere']))
+        && request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 2048
+        && (request.resource.data.photoURL == '' || request.resource.data.photoURL.matches('https://.*'))
+        && request.resource.data.photoPath is string && request.resource.data.photoPath.size() <= 200
+        && (request.resource.data.photoPath == '' || request.resource.data.photoPath.matches('avatars/' + uid + '/.*'))
+        && request.resource.data.updatedAt == request.time;
+    }
     match /notices/{id} {
       allow read: if true;
       allow create: if admin() && validEntry();
