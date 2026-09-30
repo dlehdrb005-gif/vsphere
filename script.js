@@ -42,6 +42,13 @@ function refreshAccount() {
   $('#signupButton').classList.toggle('hidden', Boolean(currentUser));
   $('#logoutButton').classList.toggle('hidden', !currentUser);
   $('#writeNotice').classList.toggle('hidden', !isAdmin());
+  $('#mypageButton').classList.toggle('hidden', !currentUser);
+  const photo = accountPhoto();
+  const showPhoto = validPhotoSource(photo);
+  $('#userAvatar').classList.toggle('hidden', !showPhoto);
+  if (showPhoto) $('#userAvatar').src = photo;
+  else $('#userAvatar').removeAttribute('src');
+  if (!currentUser && $('#profileDialog').open) $('#profileDialog').close();
 }
 function setAuthMode(next) {
   mode = next;
@@ -171,7 +178,8 @@ if (ready) {
   firebase.initializeApp(config);
   auth = firebase.auth(); db = firebase.firestore();
   auth.onAuthStateChanged(user => {
-    currentUser = user; refreshAccount();
+    currentUser = user; savedPhoto = undefined; refreshAccount();
+    if (user) void loadAccountPhoto(user);
     for (const kind of ['notices', 'messages']) if (snapshots[kind]) renderEntries(kind === 'notices' ? $('#noticeList') : $('#messageList'), snapshots[kind], kind);
   });
   subscribe('notices'); subscribe('messages');
@@ -179,3 +187,143 @@ if (ready) {
   setEmpty($('#noticeList'), '공지사항 설정이 아직 완료되지 않았습니다.');
   setEmpty($('#messageList'), '게시판 설정이 아직 완료되지 않았습니다.');
 }
+
+// Names stay in Auth; small private avatars fit within Firestore's Spark quota.
+let savedPhoto, savedPhotoRevision = 0;
+function validPhotoSource(url) {
+  return typeof url === 'string' && (url.startsWith('https://') || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(url));
+}
+function accountPhoto() { return savedPhoto === undefined ? currentUser?.photoURL : savedPhoto; }
+async function loadAccountPhoto(user) {
+  const revision = savedPhotoRevision;
+  try {
+    const snapshot = await db.collection('profilePhotos').doc(user.uid).get();
+    if (currentUser?.uid !== user.uid || revision !== savedPhotoRevision) return;
+    savedPhoto = snapshot.exists ? snapshot.data().photoData : undefined;
+    refreshAccount();
+    if ($('#profileDialog').open && !pendingProfilePhoto && !removeProfilePhoto && !profileBusy) showProfilePhoto(accountPhoto());
+  } catch (_) { /* Existing Auth photo remains available when quota or network is unavailable. */ }
+}
+let pendingProfilePhoto = null, removeProfilePhoto = false, profileBusy = false, photoVersion = 0;
+let profileAfterLogin = false;
+function showProfilePhoto(url) {
+  const safe = (validPhotoSource(url) || (typeof url === 'string' && url.startsWith('blob:'))) ? url : '';
+  $('#profilePreview').classList.toggle('hidden', !safe);
+  $('#profilePlaceholder').classList.toggle('hidden', Boolean(safe));
+  if (safe) $('#profilePreview').src = safe;
+  else $('#profilePreview').removeAttribute('src');
+}
+function resetPendingPhoto() {
+  photoVersion++;
+  if (pendingProfilePhoto) URL.revokeObjectURL(pendingProfilePhoto.preview);
+  pendingProfilePhoto = null;
+  removeProfilePhoto = false;
+}
+function openProfile() {
+  if (!currentUser) { profileAfterLogin = true; openAuth('login'); return; }
+  resetPendingPhoto();
+  lockProfile(false);
+  $('#profileForm').reset();
+  $('#profileNickname').value = currentUser.displayName || displayName(currentUser);
+  $('#profileEmail').value = currentUser.email || '';
+  $('#profileError').textContent = '';
+  $('#profileStatus').textContent = '';
+  showProfilePhoto(accountPhoto());
+  $('#profileDialog').showModal();
+}
+$('#mypageButton').addEventListener('click', openProfile);
+$('#sidebarMypage').addEventListener('click', () => { setMenu(false); openProfile(); });
+$('#authDialog').addEventListener('close', () => {
+  if (profileAfterLogin && currentUser) { profileAfterLogin = false; openProfile(); }
+  else profileAfterLogin = false;
+});
+$('#profileDialog').addEventListener('close', resetPendingPhoto);
+$('#profileDialog').addEventListener('cancel', event => { if (profileBusy) event.preventDefault(); });
+$('#profilePreview').addEventListener('error', () => showProfilePhoto(null));
+$('#userAvatar').addEventListener('error', () => $('#userAvatar').classList.add('hidden'));
+function lockProfile(locked) {
+  profileBusy = locked;
+  $('#profileForm').querySelectorAll('input,button').forEach(el => { el.disabled = locked; });
+  $('#profileForm').setAttribute('aria-busy', String(locked));
+}
+async function prepareProfilePhoto(file) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPG, PNG, WebP 사진을 선택해 주세요.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('사진 크기는 5MB 이하여야 합니다.');
+  const source = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = source;
+    await img.decode();
+    if (!img.naturalWidth || !img.naturalHeight) throw new Error('사진을 읽을 수 없습니다.');
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 192;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#ffffff'; context.fillRect(0, 0, 192, 192);
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    context.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 192, 192);
+    for (const quality of [0.8, 0.65, 0.5, 0.35]) {
+      const data = canvas.toDataURL('image/jpeg', quality);
+      if (data.length <= 60000) return data;
+    }
+    throw new Error('사진을 충분히 압축하지 못했습니다. 다른 사진을 선택해 주세요.');
+  } catch (error) {
+    throw new Error(error.message || '사진을 읽을 수 없습니다. 다른 사진을 선택해 주세요.');
+  } finally { URL.revokeObjectURL(source); }
+}
+$('#profilePhoto').addEventListener('change', async () => {
+  const file = $('#profilePhoto').files[0];
+  if (!file) return;
+  const version = ++photoVersion;
+  $('#profileError').textContent = ''; $('#profileStatus').textContent = '사진을 준비하고 있습니다.';
+  $('#profileSave').disabled = true;
+  try {
+    const data = await prepareProfilePhoto(file);
+    if (version !== photoVersion) return;
+    if (pendingProfilePhoto) URL.revokeObjectURL(pendingProfilePhoto.preview);
+    pendingProfilePhoto = { data, preview: data };
+    removeProfilePhoto = false; showProfilePhoto(pendingProfilePhoto.preview);
+    $('#profileStatus').textContent = '미리보기를 확인한 뒤 변경사항을 저장하세요.';
+  } catch (error) {
+    if (version === photoVersion) { $('#profileError').textContent = error.message; $('#profileStatus').textContent = ''; }
+  } finally {
+    if (version === photoVersion) { $('#profileSave').disabled = false; $('#profilePhoto').value = ''; }
+  }
+});
+$('#removePhoto').addEventListener('click', () => {
+  resetPendingPhoto(); removeProfilePhoto = true;
+  $('#profilePhoto').value = ''; $('#profileSave').disabled = false;
+  $('#profileError').textContent = ''; $('#profileStatus').textContent = '저장하면 기본 사진으로 변경됩니다.';
+  showProfilePhoto(null);
+});
+$('#profileForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (profileBusy || $('#profileSave').disabled) return;
+  const user = auth?.currentUser;
+  if (!user) { $('#profileError').textContent = '다시 로그인해 주세요.'; return; }
+  const name = $('#profileNickname').value.trim();
+  if (!name || name.length > 20) { $('#profileError').textContent = '닉네임은 1~20자로 입력해 주세요.'; return; }
+  lockProfile(true); $('#profileError').textContent = ''; $('#profileStatus').textContent = '저장하고 있습니다.';
+  let photoSaved = false;
+  try {
+    if (pendingProfilePhoto || removeProfilePhoto) {
+      const photoData = removeProfilePhoto ? '' : pendingProfilePhoto.data;
+      await db.collection('profilePhotos').doc(user.uid).set({ photoData });
+      if (auth.currentUser?.uid !== user.uid) throw new Error('로그인 계정이 변경되었습니다. 다시 로그인해 주세요.');
+      savedPhotoRevision++;
+      savedPhoto = photoData;
+      photoSaved = true;
+      resetPendingPhoto();
+      refreshAccount(); showProfilePhoto(accountPhoto());
+    }
+    await user.updateProfile({ displayName: name });
+    if (auth.currentUser?.uid !== user.uid) return;
+    currentUser = auth.currentUser; refreshAccount();
+    $('#profileStatus').textContent = '변경사항을 저장했습니다.';
+  } catch (error) {
+    $('#profileStatus').textContent = '';
+    const reason = error.code === 'resource-exhausted'
+      ? '무료 사용량 한도에 도달했습니다. 나중에 다시 시도해 주세요.'
+      : error.code === 'permission-denied'
+        ? '사진 저장 권한 설정을 확인해 주세요.'
+        : (error.code ? friendlyError(error) : error.message);
+    $('#profileError').textContent = (photoSaved ? '사진은 저장됐지만 닉네임 변경에 실패했습니다. ' : '') + reason;
+  } finally { lockProfile(false); }
+});
