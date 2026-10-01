@@ -31,6 +31,77 @@ service cloud.firestore {
         && (request.resource.data.photoData == ''
           || request.resource.data.photoData.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]+'));
     }
+    // 컬러타일: 방 조회는 로그인 필요, 목록 조회는 금지.
+    match /colorTileRooms/{code} {
+      function host() {
+        return signedIn() && resource.data.hostUid == request.auth.uid;
+      }
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && code.matches('[A-HJ-NP-Z2-9]{8}')
+        && request.resource.data.keys().hasOnly([
+          'hostUid', 'hostPeer', 'createdAt', 'updatedAt', 'open'
+        ])
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.hostPeer == 'vsphere-ct-v1-' + code
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.open == true;
+      allow update: if host()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['updatedAt', 'open'])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.open is bool;
+      allow delete: if host();
+
+      match /connections/{connectionId} {
+        function roomData() {
+          return get(/databases/$(database)/documents/colorTileRooms/$(code)).data;
+        }
+        function roomHost() {
+          return signedIn() && roomData().hostUid == request.auth.uid;
+        }
+        function guest() {
+          return signedIn() && resource.data.guestUid == request.auth.uid;
+        }
+        function roomActive() {
+          return roomData().open == true
+            && roomData().createdAt + duration.value(2, 'h') > request.time;
+        }
+        allow read: if roomHost() || guest();
+        allow create: if signedIn() && roomActive()
+          && roomData().updatedAt + duration.value(90, 's') > request.time
+          && request.resource.data.keys().hasOnly([
+            'guestUid', 'guestPeer', 'createdAt',
+            'clientData', 'hostData', 'closed'
+          ])
+          && request.resource.data.guestUid == request.auth.uid
+          && request.resource.data.guestPeer is string
+          && request.resource.data.guestPeer.matches(
+            'vsphere-ct-v1-guest-[a-f0-9-]{36}'
+          )
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.clientData == '[]'
+          && request.resource.data.hostData == '[]'
+          && request.resource.data.closed == false;
+        allow update: if roomActive() && resource.data.closed == false
+          && request.resource.data.closed is bool
+          && (
+            (roomHost()
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['hostData', 'closed'])
+              && request.resource.data.hostData is string
+              && request.resource.data.hostData.size() <= 30000)
+            || (guest()
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['clientData', 'closed'])
+              && request.resource.data.clientData is string
+              && request.resource.data.clientData.size() <= 30000)
+          );
+        allow delete: if roomHost();
+      }
+    }
     match /notices/{id} {
       allow read: if true;
       allow create: if admin() && validEntry();

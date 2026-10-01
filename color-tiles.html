@@ -3,23 +3,27 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#ffe58a"><title>컬러타일 | 빅타민놀이터 | VSPHERE</title>
-  <link rel="stylesheet" href="color-tiles.css?v=20261001-multi2">
-  <script src="peerjs.min.js" defer></script>
-  <script src="color-tiles-core.js?v=20261001-multi2" defer></script>
-  <script src="color-tiles.js?v=20261001-multi2" defer></script>
+  <link rel="stylesheet" href="color-tiles.css?v=20261002-firebase1">
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js" defer></script>
+  <script src="firebase-config.js" defer></script>
+  <script src="color-tiles-firebase.js?v=20261002-firebase1" defer></script>
+  <script src="color-tiles-core.js?v=20261002-firebase1" defer></script>
+  <script src="color-tiles.js?v=20261002-firebase1" defer></script>
 </head>
 <body>
   <header><a class="brand" href="/">← VSPHERE</a><span>빅타민놀이터</span><span class="external">함께 즐기는 컬러타일</span></header>
   <main>
     <section class="intro"><span class="eyebrow">COLOR TILES · PLAY TOGETHER</span><h1>컬러타일<span>✦</span></h1><p>같은 색을 찾고, 친구와 점수 대결!</p></section>
     <section class="room-panel" aria-label="멀티플레이">
-      <div id="roomSetup"><div class="room-title"><h2>친구와 함께하기</h2><span>무료 · 최대 8명</span></div>
+      <p class="login-note">멀티플레이는 브이스피어 로그인 후 이용할 수 있어요. <a href="/" target="_blank" rel="noopener">로그인 화면 열기 ↗</a></p><div id="roomSetup"><div class="room-title"><h2>친구와 함께하기</h2><span>최대 8명 · 서버 연결</span></div>
         <div class="room-fields"><label>게임 닉네임<input id="nickname" maxlength="20" placeholder="닉네임" autocomplete="nickname"></label><label>방 코드<input id="joinCode" maxlength="8" placeholder="8자리 코드" autocapitalize="characters" spellcheck="false"></label><label>방 비밀번호 <small>선택</small><input id="roomPassword" type="password" maxlength="32" placeholder="비워두면 공개방" autocomplete="off"></label></div>
         <div class="room-actions"><button id="createRoom" type="button" class="primary">방 만들기</button><button id="joinRoom" type="button">코드로 참가</button><button id="cancelConnect" type="button" hidden>연결 취소</button></div>
       </div>
       <div id="roomLobby" hidden><div class="room-title"><h2>우리의 게임방 <span id="roomCode"></span></h2><span id="roomCount"></span></div><div class="room-actions"><button id="copyInvite" type="button">초대 링크 복사</button><button id="readyButton" type="button">준비하기</button><button id="hostStart" type="button" class="primary">함께 시작</button><button id="leaveRoom" type="button">방 나가기</button></div><p id="roomHint"></p></div>
       <p id="networkStatus" role="status" aria-live="polite">방을 만들고 초대 링크나 방 코드를 공유하세요.</p>
-      <p class="connection-note">방장은 게임 화면을 켜두세요. 방장이 나가면 방이 종료돼요. 일부 회사·공용망에서는 연결이 제한될 수 있어요.</p>
+      <p class="connection-note">방장은 게임 화면을 켜두세요. 방장이 나가면 방이 종료돼요. 무료 서버 제공량을 다 쓰면 다음 초기화까지 이용이 제한될 수 있어요.</p>
     </section>
     <div class="play-layout">
       <aside id="leaderboard" class="leaderboard" aria-label="실시간 순위" hidden><h2 id="rankingTitle">참가자</h2><p class="rank-note">동점은 공동 순위 · 모두 지우면 먼저 끝낸 순</p><div id="playerList"></div></aside>

@@ -1,0 +1,119 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VSPHERE Firebase 규칙 교체</title><style>body{font-family:system-ui,sans-serif;max-width:850px;margin:30px auto;padding:0 18px;background:#fff7d6;color:#63330d;line-height:1.7}h1{font-size:25px}button,a{font:inherit}button{padding:14px 22px;background:#dc6b15;color:white;border:0;border-radius:10px;font-weight:700;cursor:pointer}textarea{display:block;width:100%;box-sizing:border-box;height:55vh;margin:18px 0;font:12px/1.6 monospace;padding:14px;border:1px solid #be9c64;background:white;color:#222}#message{min-height:2em}a{color:inherit}</style><h1>사진·게시판·컬러타일 전체 규칙</h1><p>아래 버튼으로 전체 규칙을 복사한 뒤 Firebase의 규칙 편집창 내용을 모두 교체하고 <strong>게시</strong>를 눌러주세요. 게시글 데이터는 삭제되지 않습니다.</p><button id="copy" type="button">전체 규칙 복사</button><p id="message" role="status"></p><textarea id="rules" readonly aria-label="Firebase 전체 규칙">rules_version = &#x27;2&#x27;;
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function admin() {
+      return signedIn() &amp;&amp; request.auth.token.email == &#x27;dlehdrb005@gmail.com&#x27;
+        &amp;&amp; request.auth.token.email_verified == true;
+    }
+    function validEntry() {
+      return request.resource.data.keys().hasAll([&#x27;title&#x27;, &#x27;body&#x27;, &#x27;authorUid&#x27;, &#x27;authorName&#x27;, &#x27;createdAt&#x27;])
+        &amp;&amp; request.resource.data.keys().hasOnly([&#x27;title&#x27;, &#x27;body&#x27;, &#x27;authorUid&#x27;, &#x27;authorName&#x27;, &#x27;createdAt&#x27;])
+        &amp;&amp; request.resource.data.title is string &amp;&amp; request.resource.data.title.size() &gt; 0 &amp;&amp; request.resource.data.title.size() &lt;= 80
+        &amp;&amp; request.resource.data.body is string &amp;&amp; request.resource.data.body.size() &gt; 0 &amp;&amp; request.resource.data.body.size() &lt;= 3000
+        &amp;&amp; request.resource.data.authorName is string &amp;&amp; request.resource.data.authorName.size() &gt; 0 &amp;&amp; request.resource.data.authorName.size() &lt;= 60
+        &amp;&amp; request.resource.data.authorUid == request.auth.uid
+        &amp;&amp; request.resource.data.createdAt == request.time;
+    }
+    function owner() { return signedIn() &amp;&amp; resource.data.authorUid == request.auth.uid; }
+    function validEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([&#x27;title&#x27;, &#x27;body&#x27;])
+        &amp;&amp; request.resource.data.title is string &amp;&amp; request.resource.data.title.size() &gt; 0 &amp;&amp; request.resource.data.title.size() &lt;= 80
+        &amp;&amp; request.resource.data.body is string &amp;&amp; request.resource.data.body.size() &gt; 0 &amp;&amp; request.resource.data.body.size() &lt;= 3000;
+    }
+    match /profilePhotos/{uid} {
+      allow read: if signedIn() &amp;&amp; request.auth.uid == uid;
+      allow create, update: if signedIn() &amp;&amp; request.auth.uid == uid
+        &amp;&amp; request.resource.data.keys().hasAll([&#x27;photoData&#x27;])
+        &amp;&amp; request.resource.data.keys().hasOnly([&#x27;photoData&#x27;])
+        &amp;&amp; request.resource.data.photoData is string
+        &amp;&amp; request.resource.data.photoData.size() &lt;= 60000
+        &amp;&amp; (request.resource.data.photoData == &#x27;&#x27;
+          || request.resource.data.photoData.matches(&#x27;data:image/jpeg;base64,[A-Za-z0-9+/=]+&#x27;));
+    }
+    // 컬러타일: 방 조회는 로그인 필요, 목록 조회는 금지.
+    match /colorTileRooms/{code} {
+      function host() {
+        return signedIn() &amp;&amp; resource.data.hostUid == request.auth.uid;
+      }
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        &amp;&amp; code.matches(&#x27;[A-HJ-NP-Z2-9]{8}&#x27;)
+        &amp;&amp; request.resource.data.keys().hasOnly([
+          &#x27;hostUid&#x27;, &#x27;hostPeer&#x27;, &#x27;createdAt&#x27;, &#x27;updatedAt&#x27;, &#x27;open&#x27;
+        ])
+        &amp;&amp; request.resource.data.hostUid == request.auth.uid
+        &amp;&amp; request.resource.data.hostPeer == &#x27;vsphere-ct-v1-&#x27; + code
+        &amp;&amp; request.resource.data.createdAt == request.time
+        &amp;&amp; request.resource.data.updatedAt == request.time
+        &amp;&amp; request.resource.data.open == true;
+      allow update: if host()
+        &amp;&amp; request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([&#x27;updatedAt&#x27;, &#x27;open&#x27;])
+        &amp;&amp; request.resource.data.updatedAt == request.time
+        &amp;&amp; request.resource.data.open is bool;
+      allow delete: if host();
+
+      match /connections/{connectionId} {
+        function roomData() {
+          return get(/databases/$(database)/documents/colorTileRooms/$(code)).data;
+        }
+        function roomHost() {
+          return signedIn() &amp;&amp; roomData().hostUid == request.auth.uid;
+        }
+        function guest() {
+          return signedIn() &amp;&amp; resource.data.guestUid == request.auth.uid;
+        }
+        function roomActive() {
+          return roomData().open == true
+            &amp;&amp; roomData().createdAt + duration.value(2, &#x27;h&#x27;) &gt; request.time;
+        }
+        allow read: if roomHost() || guest();
+        allow create: if signedIn() &amp;&amp; roomActive()
+          &amp;&amp; roomData().updatedAt + duration.value(90, &#x27;s&#x27;) &gt; request.time
+          &amp;&amp; request.resource.data.keys().hasOnly([
+            &#x27;guestUid&#x27;, &#x27;guestPeer&#x27;, &#x27;createdAt&#x27;,
+            &#x27;clientData&#x27;, &#x27;hostData&#x27;, &#x27;closed&#x27;
+          ])
+          &amp;&amp; request.resource.data.guestUid == request.auth.uid
+          &amp;&amp; request.resource.data.guestPeer is string
+          &amp;&amp; request.resource.data.guestPeer.matches(
+            &#x27;vsphere-ct-v1-guest-[a-f0-9-]{36}&#x27;
+          )
+          &amp;&amp; request.resource.data.createdAt == request.time
+          &amp;&amp; request.resource.data.clientData == &#x27;[]&#x27;
+          &amp;&amp; request.resource.data.hostData == &#x27;[]&#x27;
+          &amp;&amp; request.resource.data.closed == false;
+        allow update: if roomActive() &amp;&amp; resource.data.closed == false
+          &amp;&amp; request.resource.data.closed is bool
+          &amp;&amp; (
+            (roomHost()
+              &amp;&amp; request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly([&#x27;hostData&#x27;, &#x27;closed&#x27;])
+              &amp;&amp; request.resource.data.hostData is string
+              &amp;&amp; request.resource.data.hostData.size() &lt;= 30000)
+            || (guest()
+              &amp;&amp; request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly([&#x27;clientData&#x27;, &#x27;closed&#x27;])
+              &amp;&amp; request.resource.data.clientData is string
+              &amp;&amp; request.resource.data.clientData.size() &lt;= 30000)
+          );
+        allow delete: if roomHost();
+      }
+    }
+    match /notices/{id} {
+      allow read: if true;
+      allow create: if admin() &amp;&amp; validEntry();
+      allow delete: if admin();
+      allow update: if admin() &amp;&amp; owner() &amp;&amp; validEdit();
+    }
+    match /messages/{id} {
+      allow read: if true;
+      allow create: if signedIn() &amp;&amp; validEntry();
+      allow delete: if owner() || admin();
+      allow update: if owner() &amp;&amp; validEdit();
+    }
+  }
+}
+</textarea><p><a href="https://console.firebase.google.com/u/1/project/vsphere-b04a9/firestore/databases/-default-/security/rules" target="_blank" rel="noopener">Firebase 규칙 화면 열기 ↗</a></p><p>게시 후 컬러타일을 새로고침하고 로그인 → 방 만들기 → 친구 참가 → 준비하기 → 함께 시작 순서로 이용하세요. 이 페이지의 코드는 Firebase 콘솔에 직접 게시해야 적용됩니다.</p><script>document.getElementById('copy').addEventListener('click',async()=>{const el=document.getElementById('rules');try{await navigator.clipboard.writeText(el.value);document.getElementById('message').textContent='전체 규칙을 복사했어요. Firebase 편집창에 붙여넣고 게시해주세요.';}catch(_){el.focus();el.select();document.getElementById('message').textContent='코드 전체를 선택했어요. 길게 누르거나 Ctrl+C로 복사해주세요.';}});</script></html>
