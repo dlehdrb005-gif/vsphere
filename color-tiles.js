@@ -84,7 +84,7 @@
     if(typeof window.Peer!=='function'){say('멀티플레이 연결 파일을 불러오지 못했어요. 페이지를 새로고침해주세요.',true);return;}
     solo=null;$('restart').disabled=true;overlay('연결 중','잠시만 기다려주세요.');setBusy(true);say(asHost?'방을 만드는 중이에요…':'방장과 연결하는 중이에요…');
     const epoch=++generation;const password=$('roomPassword').value;isHost=asHost;
-    let p;try {p=new Peer(asHost?PREFIX+code:undefined,{debug:0});peer=p;}catch(e){teardown(errorText(e),true);return;}
+    let p;try {p=new Peer(asHost?PREFIX+code:PREFIX+'guest-'+crypto.randomUUID(),{debug:0});peer=p;}catch(e){teardown(errorText(e),true);return;}
     connectTimeout=setTimeout(()=>{if(epoch===generation)teardown('연결 시간이 초과됐어요. 방 코드·비밀번호와 네트워크를 확인해주세요.',true);},20000);
     p.on('error',error=>{if(epoch!==generation)return;if(busy)teardown(errorText(error),true);else say('새 참가자 연결에 문제가 생겼어요. 현재 연결된 경기는 계속됩니다.',true);});
     p.on('disconnected',()=>{if(epoch===generation){say('방 연결 서버에 재접속 중이에요. 현재 경기는 계속됩니다.');try{p.reconnect();}catch(_){}}});
@@ -96,8 +96,9 @@
         clearTimeout(connectTimeout);room={code,password,phase:'lobby',round:0,startsAt:0,players:new Map()};
         room.players.set(me,newPlayer(me,name,true));setBusy(false);enterRoom(code);say('방이 열렸어요. 친구에게 초대 링크나 방 코드를 알려주세요.');publish();
       }else{
+        say('연결 서버에 접속했어요. 방장과 직접 연결 중이에요…');
         const conn=p.connect(PREFIX+code,{reliable:true,serialization:'json'});hostConnection=conn;
-        conn.on('open',()=>{if(epoch===generation)send(conn,{type:'hello',version:1,name,password});});
+        conn.on('open',()=>{if(epoch===generation){say('방장과 연결됐어요. 입장 정보를 확인 중이에요…');send(conn,{type:'hello',version:1,name,password});}});
         conn.on('data',data=>{if(epoch===generation)receiveHost(data,code);});
         conn.on('close',()=>{if(epoch===generation)teardown('방장과 연결이 끊겼어요. 방장이 방을 열어둔 상태인지 확인해주세요.',true);});
         conn.on('error',()=>{if(epoch===generation)teardown('방장과 연결하지 못했어요. 네트워크를 확인해주세요.',true);});
@@ -108,6 +109,7 @@
   function newPlayer(id,name,host=false) {return {id,name,host,ready:host,connected:true,board:Array(C.COLS*C.ROWS).fill(-1),score:0,deadline:0,done:false,seq:0,finishedAt:0,lastMove:0};}
   function acceptConnection(conn,epoch) {
     if(pending.size+connections.size>=12){conn.close();return;}pending.add(conn);let accepted=false;
+    conn.on('open',()=>{if(epoch===generation)say('새 참가자가 연결됐어요. 입장 정보를 확인 중이에요…');});
     const timeout=setTimeout(()=>{if(!accepted)conn.close();},10000);
     conn.on('data',data=>{
       if(epoch!==generation||!room||!data||typeof data!=='object')return;
