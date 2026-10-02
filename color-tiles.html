@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#ffe58a"><title>컬러타일 | 빅타민놀이터 | VSPHERE</title>
-  <link rel="stylesheet" href="color-tiles.css?v=20261002-firebase1">
+  <link rel="stylesheet" href="color-tiles.css?v=20261002-time1">
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js" defer></script>
   <script src="firebase-config.js" defer></script>
-  <script src="color-tiles-firebase.js?v=20261002-firebase1" defer></script>
-  <script src="color-tiles-core.js?v=20261002-firebase1" defer></script>
-  <script src="color-tiles.js?v=20261002-firebase1" defer></script>
+  <script src="color-tiles-firebase.js?v=20261002-time1" defer></script>
+  <script src="color-tiles-core.js?v=20261002-time1" defer></script>
+  <script src="color-tiles.js?v=20261002-time1" defer></script>
 </head>
 <body>
   <header><a class="brand" href="/">← VSPHERE</a><span>빅타민놀이터</span><span class="external">함께 즐기는 컬러타일</span></header>
@@ -23,17 +23,18 @@
       </div>
       <div id="roomLobby" hidden><div class="room-title"><h2>우리의 게임방 <span id="roomCode"></span></h2><span id="roomCount"></span></div><div class="room-actions"><button id="copyInvite" type="button">초대 링크 복사</button><button id="readyButton" type="button">준비하기</button><button id="hostStart" type="button" class="primary">함께 시작</button><button id="leaveRoom" type="button">방 나가기</button></div><p id="roomHint"></p></div>
       <p id="networkStatus" role="status" aria-live="polite">방을 만들고 초대 링크나 방 코드를 공유하세요.</p>
-      <p class="connection-note">방장은 게임 화면을 켜두세요. 방장이 나가면 방이 종료돼요. 무료 서버 제공량을 다 쓰면 다음 초기화까지 이용이 제한될 수 있어요.</p>
+      <p class="connection-note">방장은 게임 화면을 켜두세요. 방장이 나가면 방이 종료돼요. 무제한은 경기 타이머가 없으며, 멀티 방 연결은 방 생성 후 최대 2시간 유지돼요. 무료 서버 제공량을 다 쓰면 다음 초기화까지 이용이 제한될 수 있어요.</p>
     </section>
+    <div class="time-settings"><label for="duration">경기 시간</label><select id="duration"><option value="120000">2분</option><option value="300000">5분</option><option value="0">무제한</option></select><span id="durationHint">혼자 플레이하거나 방을 만들 때 적용돼요.</span></div>
     <div class="play-layout">
       <aside id="leaderboard" class="leaderboard" aria-label="실시간 순위" hidden><h2 id="rankingTitle">참가자</h2><p class="rank-note">동점은 공동 순위 · 모두 지우면 먼저 끝낸 순</p><div id="playerList"></div></aside>
       <section class="game" aria-label="컬러타일 게임">
         <div class="stats"><div><span>남은 시간</span><strong id="timer">2:00</strong></div><div><span>내 점수</span><strong><b id="score">0</b><small> / 200</small></strong></div><div class="best"><span id="thirdLabel">최고 점수</span><strong id="best">0</strong></div></div>
         <div class="board-wrap"><canvas id="board" width="920" height="680" tabindex="0" aria-label="컬러타일 게임판. 방향키로 칸을 선택하고 Enter 또는 Space로 지우세요."></canvas><div id="overlay" class="overlay"><div class="start-card"><span class="sun">✹</span><h2 id="resultTitle">준비됐나요?</h2><p id="resultText">혼자 연습하거나 위에서 친구를 초대하세요.</p><button id="start" type="button">혼자 시작 →</button></div></div></div>
-        <div class="game-bottom"><p id="status" role="status" aria-live="polite">2분 동안 200개의 타일에 도전하세요.</p><button id="restart" type="button" disabled>다시 시작</button></div>
+        <div class="game-bottom"><p id="status" role="status" aria-live="polite">2분 동안 200개의 타일에 도전하세요.</p><button id="finishRun" type="button" hidden>내 도전 종료</button><button id="restart" type="button" disabled>다시 시작</button></div>
       </section>
     </div>
-    <section class="help"><h2>이렇게 플레이해요</h2><ol><li><strong>타일 사이 빈칸</strong>을 누르세요.</li><li>상하좌우에서 처음 만나는 타일 중 <strong>같은 색이 2개 이상</strong>이면 사라져요.</li><li>타일 하나당 1점! 잘못 누르면 <strong>내 남은 시간에서 10초 차감</strong>돼요.</li></ol><p>모바일은 터치 · PC는 클릭 또는 방향키 + Enter<br>멀티플레이: 참가자 전원이 준비하면 방장이 시작해요. 모두 같은 배치로 2분간 경쟁하며 각자 타일을 지워요.<br>경기 도중에는 새로 참가할 수 없어요. 종료 후 방장이 ‘다음 경기 준비’를 누르면 다시 입장할 수 있어요.</p></section>
+    <section class="help"><h2>이렇게 플레이해요</h2><ol><li><strong>타일 사이 빈칸</strong>을 누르세요.</li><li>상하좌우에서 처음 만나는 타일 중 <strong>같은 색이 2개 이상</strong>이면 사라져요.</li><li>타일 하나당 1점! 잘못 누르면 <strong>내 남은 시간에서 10초 차감</strong>돼요. 무제한에서는 시간 차감이 없어요.</li></ol><p>모바일은 터치 · PC는 클릭 또는 방향키 + Enter<br>멀티플레이: 참가자 전원이 준비하면 방장이 시작해요. 방장이 선택한 시간으로 모두 같은 배치에서 경쟁하며 각자 타일을 지워요.<br>경기 도중에는 새로 참가할 수 없어요. 종료 후 방장이 ‘다음 경기 준비’를 누르면 다시 입장할 수 있어요.</p></section>
   </main><footer>VSPHERE · 빅타민놀이터</footer>
 </body>
 </html>
