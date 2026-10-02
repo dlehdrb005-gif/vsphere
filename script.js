@@ -102,11 +102,13 @@ function formatDate(value) {
   return date ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' }).format(date) : '방금';
 }
 function renderEntries(target, snapshot, kind) {
+  const expanded = new Set([...target.querySelectorAll('details[open]')].map(item => item.dataset.postId));
+  if (kind === 'messages') clearComments();
   target.replaceChildren();
   if (snapshot.empty) { setEmpty(target, kind === 'notices' ? '아직 등록된 공지가 없습니다.' : '아직 남겨진 글이 없습니다. 첫 글을 남겨주세요.'); return; }
   snapshot.forEach(doc => {
     const data = doc.data();
-    const article = document.createElement('details'); article.className = 'entry';
+    const article = document.createElement('details'); article.className = 'entry'; article.dataset.postId = doc.id;
     const summary = document.createElement('summary'); summary.className = 'entry-summary';
     const title = document.createElement('h3'); title.textContent = data.title;
     const body = document.createElement('p'); body.textContent = data.body;
@@ -131,7 +133,9 @@ function renderEntries(target, snapshot, kind) {
       });
       article.append(remove);
     }
+    if (kind === 'messages') attachComments(article, doc.id);
     target.append(article);
+    article.open = expanded.has(doc.id);
   });
 }
 let snapshots = {};

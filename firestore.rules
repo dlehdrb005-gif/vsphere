@@ -109,6 +109,19 @@ service cloud.firestore {
       allow update: if admin() && owner() && validEdit();
     }
     match /messages/{id} {
+      match /comments/{commentId} {
+        function postExists() { return exists(/databases/$(database)/documents/messages/$(id)); }
+        function validBody() { return request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 1000; }
+        allow read: if postExists();
+        allow create: if signedIn() && postExists()
+          && request.resource.data.keys().hasOnly(['body', 'authorUid', 'authorName', 'createdAt'])
+          && validBody() && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorName is string && request.resource.data.authorName.size() > 0 && request.resource.data.authorName.size() <= 60
+          && request.resource.data.createdAt == request.time;
+        allow update: if owner() && postExists() && validBody()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body']);
+        allow delete: if owner() || admin();
+      }
       allow read: if true;
       allow create: if signedIn() && validEntry();
       allow delete: if owner() || admin();

@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VSPHERE Firebase 규칙 교체</title><style>body{font-family:system-ui,sans-serif;max-width:850px;margin:30px auto;padding:0 18px;background:#fff7d6;color:#63330d;line-height:1.7}h1{font-size:25px}button,a{font:inherit}button{padding:14px 22px;background:#dc6b15;color:white;border:0;border-radius:10px;font-weight:700;cursor:pointer}textarea{display:block;width:100%;box-sizing:border-box;height:55vh;margin:18px 0;font:12px/1.6 monospace;padding:14px;border:1px solid #be9c64;background:white;color:#222}#message{min-height:2em}a{color:inherit}</style><h1>사진·게시판·컬러타일 전체 규칙</h1><p>아래 버튼으로 전체 규칙을 복사한 뒤 Firebase의 규칙 편집창 내용을 모두 교체하고 <strong>게시</strong>를 눌러주세요. 게시글 데이터는 삭제되지 않습니다.</p><button id="copy" type="button">전체 규칙 복사</button><p id="message" role="status"></p><textarea id="rules" readonly aria-label="Firebase 전체 규칙">rules_version = &#x27;2&#x27;;
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VSPHERE Firebase 규칙 교체</title><style>body{font-family:system-ui,sans-serif;max-width:850px;margin:30px auto;padding:0 18px;background:#fff7d6;color:#63330d;line-height:1.7}h1{font-size:25px}button,a{font:inherit}button{padding:14px 22px;background:#dc6b15;color:white;border:0;border-radius:10px;font-weight:700;cursor:pointer}textarea{display:block;width:100%;box-sizing:border-box;height:55vh;margin:18px 0;font:12px/1.6 monospace;padding:14px;border:1px solid #be9c64;background:white;color:#222}#message{min-height:2em}a{color:inherit}</style><h1>사진·게시판·댓글·컬러타일 전체 규칙</h1><p>아래 버튼으로 전체 규칙을 복사한 뒤 Firebase의 규칙 편집창 내용을 모두 교체하고 <strong>게시</strong>를 눌러주세요. 게시글 데이터는 삭제되지 않습니다.</p><button id="copy" type="button">전체 규칙 복사</button><p id="message" role="status"></p><textarea id="rules" readonly aria-label="Firebase 전체 규칙">rules_version = &#x27;2&#x27;;
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -109,6 +109,19 @@ service cloud.firestore {
       allow update: if admin() &amp;&amp; owner() &amp;&amp; validEdit();
     }
     match /messages/{id} {
+      match /comments/{commentId} {
+        function postExists() { return exists(/databases/$(database)/documents/messages/$(id)); }
+        function validBody() { return request.resource.data.body is string &amp;&amp; request.resource.data.body.size() &gt; 0 &amp;&amp; request.resource.data.body.size() &lt;= 1000; }
+        allow read: if postExists();
+        allow create: if signedIn() &amp;&amp; postExists()
+          &amp;&amp; request.resource.data.keys().hasOnly([&#x27;body&#x27;, &#x27;authorUid&#x27;, &#x27;authorName&#x27;, &#x27;createdAt&#x27;])
+          &amp;&amp; validBody() &amp;&amp; request.resource.data.authorUid == request.auth.uid
+          &amp;&amp; request.resource.data.authorName is string &amp;&amp; request.resource.data.authorName.size() &gt; 0 &amp;&amp; request.resource.data.authorName.size() &lt;= 60
+          &amp;&amp; request.resource.data.createdAt == request.time;
+        allow update: if owner() &amp;&amp; postExists() &amp;&amp; validBody()
+          &amp;&amp; request.resource.data.diff(resource.data).affectedKeys().hasOnly([&#x27;body&#x27;]);
+        allow delete: if owner() || admin();
+      }
       allow read: if true;
       allow create: if signedIn() &amp;&amp; validEntry();
       allow delete: if owner() || admin();
