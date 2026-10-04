@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const {videoId,position,validState}=require('./sync-music-core.js');
+for(const url of ['https://youtu.be/abcdefghijk?t=2','https://www.youtube.com/watch?v=abcdefghijk','https://music.youtube.com/watch?v=abcdefghijk','https://youtube.com/shorts/abcdefghijk','abcdefghijk'])assert.equal(videoId(url),'abcdefghijk');
+for(const url of ['javascript:alert(1)','https://youtube.com.evil.test/watch?v=abcdefghijk','https://evil.test/abcdefghijk','https://youtube.com/playlist?list=test','https://youtu.be/short'])assert.equal(videoId(url),null);
+assert.equal(position({position:30,playing:true},12),42);
+assert.equal(position({position:30,playing:false},12),30);
+const state={queue:[{key:'1',videoId:'abcdefghijk',title:'song',by:'friend'}],current:'1',position:10,playing:true,revision:1,chat:[],members:2};
+assert(validState(state));
+for(const patch of [{current:'missing'},{position:NaN},{position:-1},{members:100},{queue:Array(26).fill(state.queue[0])},{chat:[{name:'x',text:'x'.repeat(161)}]}])assert(!validState({...state,...patch}));
+console.log('URL validation, paused/playing sync and hostile snapshot checks passed.');
