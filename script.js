@@ -35,7 +35,7 @@ function friendlyError(error) {
   };
   return messages[error?.code] || '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
-function displayName(user) { return user?.displayName || user?.email?.split('@')[0] || '회원'; }
+function displayName(user) { return user?.displayName || '회원'; }
 function refreshAccount() {
   $('#userLabel').textContent = currentUser ? displayName(currentUser) : '비회원';
   $('#loginButton').classList.toggle('hidden', Boolean(currentUser));
