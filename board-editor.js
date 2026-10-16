@@ -6,7 +6,7 @@ window.BoardEditor = (() => {
   const editor = document.querySelector('#entryBody'), dialog = document.querySelector('#postDialog');
   const preview = document.querySelector('#editorPreviewBody');
   const status = document.querySelector('#editorStatus'), error = document.querySelector('#postError');
-  let locked = false, uploading = false, range = null, initial = '', initialTitle = '', pending = [], isPreview = false;
+  let locked = false, range = null, initial = '', initialTitle = '', isPreview = false;
   function safeLink(value) {
     try { const u = new URL(value); return ['https:', 'http:'].includes(u.protocol) && !u.username && !u.password ? u.href : ''; } catch { return ''; }
   }
@@ -55,7 +55,7 @@ window.BoardEditor = (() => {
     figure.dataset.name = String(item.name || '').slice(0, 200);
     if (editing) {
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-media'; remove.textContent = '첨부 제거';
-      remove.addEventListener('click', () => { if (!locked && !uploading) { figure.remove(); changed(); } }); figure.append(remove);
+      remove.addEventListener('click', () => { if (!locked) { figure.remove(); changed(); } }); figure.append(remove);
     }
     return figure;
   }
@@ -142,27 +142,22 @@ window.BoardEditor = (() => {
     updateLock();
   }
   function updateLock() {
-    const busy = locked || uploading;
+    const busy = locked;
     dialog.querySelectorAll('button,input').forEach(el => { el.disabled = busy || (isPreview && el.closest('.editor-toolbar') && el.id !== 'editorPreview'); });
     editor.contentEditable = String(!busy && !isPreview); dialog.setAttribute('aria-busy', String(busy));
-  }
-  async function cleanPending(keep = new Set()) {
-    const toClean = pending; pending = [];
-    await Promise.allSettled(toClean.filter(item => !keep.has(item.url)).map(item => item.ref.delete()));
   }
   function reset(body) {
     render(editor, body, true); range = null; status.textContent = ''; setPreview(false); changed(); initial = raw(); initialTitle = document.querySelector('#entryTitle').value;
   }
   function saved() {
-    const keep = new Set([...editor.querySelectorAll('figure')].map(el => el.dataset.src));
-    void cleanPending(keep); initial = raw(); initialTitle = document.querySelector('#entryTitle').value;
+    initial = raw(); initialTitle = document.querySelector('#entryTitle').value;
   }
   function dirty() { return raw() !== initial || document.querySelector('#entryTitle').value !== initialTitle; }
-  function canClose() { return !locked && !uploading && (!dirty() || confirm('작성 중인 내용을 버리고 닫을까요?')); }
+  function canClose() { return !locked && (!dirty() || confirm('작성 중인 내용을 버리고 닫을까요?')); }
   dialog.addEventListener('cancel', event => { if (!canClose()) event.preventDefault(); });
   dialog.querySelector('[data-close]').addEventListener('click', event => { if (!canClose()) event.stopImmediatePropagation(); });
-  dialog.addEventListener('close', () => { preview.replaceChildren(); void cleanPending(); });
-  window.addEventListener('beforeunload', event => { if (dialog.open && (uploading || locked || dirty())) { event.preventDefault(); event.returnValue = ''; } });
+  dialog.addEventListener('close', () => { preview.replaceChildren(); });
+  window.addEventListener('beforeunload', event => { if (dialog.open && (locked || dirty())) { event.preventDefault(); event.returnValue = ''; } });
   document.addEventListener('selectionchange', remember);
   editor.addEventListener('input', changed);
   document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => {
@@ -182,55 +177,18 @@ window.BoardEditor = (() => {
   });
   function addMedia(item) { const figure = mediaNode(item, true); insert(figure); const paragraph = document.createElement('p'); paragraph.append(document.createElement('br')); insert(paragraph); range.selectNodeContents(paragraph); range.collapse(true); restore(); }
   document.querySelector('#editorPreview').addEventListener('click', () => setPreview(!isPreview));
-  const picker = document.querySelector('#editorFiles');
-  function pick(accept) { remember(); picker.accept = accept; picker.value = ''; picker.click(); }
-  document.querySelector('#editorImage').addEventListener('click', () => pick('image/jpeg,image/png,image/webp,image/gif'));
-  document.querySelector('#editorVideo').addEventListener('click', () => pick('video/mp4,video/webm'));
-  picker.addEventListener('change', () => upload([...picker.files]));
-  const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm']);
-  async function upload(files) {
-    if (!files.length || locked || uploading || isPreview) return;
-    error.textContent = ''; const user = window.firebase?.auth().currentUser;
-    if (!user) { error.textContent = '파일을 첨부하려면 로그인해 주세요.'; return; }
-    try {
-      if (files.length + editor.querySelectorAll('figure').length > MAX_MEDIA) throw new Error('첨부는 최대 20개입니다.');
-      for (const file of files) {
-        if (!allowedTypes.has(file.type)) throw new Error('JPG·PNG·WebP·GIF·MP4·WebM 파일만 첨부할 수 있습니다.');
-        if (!file.size || file.size > (file.type.startsWith('image/') ? 10 : 50) * 1024 * 1024) throw new Error('사진은 10MB, 영상은 50MB 이하로 첨부해 주세요.');
-      }
-      if (!window.firebase.storage) throw new Error('파일 저장 기능을 불러오지 못했습니다. 새로고침해 주세요.');
-      uploading = true; updateLock();
-      const storage = firebase.storage();
-      for (let i = 0; i < files.length; i++) {
-        if (firebase.auth().currentUser?.uid !== user.uid) throw new Error('로그인이 변경되어 업로드를 중단했습니다.');
-        const file = files[i], ref = storage.ref('boardMedia/' + user.uid + '/' + crypto.randomUUID());
-        const item = {ref, url: ''}; pending.push(item);
-        const task = ref.put(file, {contentType: file.type});
-        await new Promise((resolve, reject) => task.on('state_changed', snapshot => {
-          status.textContent = `첨부 ${i + 1}/${files.length} 업로드 중 · ${Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100)}%`;
-        }, reject, resolve));
-        item.url = await ref.getDownloadURL();
-        if (firebase.auth().currentUser?.uid !== user.uid) throw new Error('로그인이 변경되어 업로드를 중단했습니다.');
-        addMedia({kind: file.type.startsWith('image/') ? 'image' : 'video', src: item.url, name: file.name});
-      }
-      status.textContent = '첨부 완료. 본문을 확인한 뒤 등록해 주세요.';
-    } catch (err) {
-      status.textContent = '';
-      error.textContent = err.code?.startsWith('storage/') ? '파일 업로드에 실패했습니다. 네트워크 또는 Firebase Storage 설정·용량·권한을 확인해 주세요. 작성한 내용은 유지됩니다.' : err.message;
-    } finally { uploading = false; updateLock(); }
-  }
   editor.addEventListener('paste', event => {
     event.preventDefault();
-    if (locked || uploading) return;
+    if (locked) return;
     const files = [...(event.clipboardData?.files || [])];
-    if (files.length) { void upload(files); return; }
+    if (files.length) { error.textContent = '파일 업로드는 지원하지 않습니다. 유튜브 버튼으로 영상 주소를 넣어 주세요.'; return; }
     insert(textNode(event.clipboardData?.getData('text/plain') || ''));
   });
   editor.addEventListener('dragover', event => event.preventDefault());
   editor.addEventListener('drop', event => {
-    event.preventDefault(); if (locked || uploading) return;
-    if (event.dataTransfer?.files.length) void upload([...event.dataTransfer.files]);
+    event.preventDefault(); if (locked) return;
+    if (event.dataTransfer?.files.length) error.textContent = '파일 업로드는 지원하지 않습니다.';
     else insert(textNode(event.dataTransfer?.getData('text/plain') || ''));
   });
-  return {render, reset, serialize, saved, lock(value) { locked = value; updateLock(); }, busy: () => locked || uploading};
+  return {render, reset, serialize, saved, lock(value) { locked = value; updateLock(); }, busy: () => locked};
 })();
