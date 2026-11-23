@@ -3,7 +3,7 @@
 (() => {
  const C=window.PhantomCore,$=id=>document.getElementById(id),PREFIX='vsphere-ct-v1-';
  const CODE=/^[A-HJ-NP-Z2-9]{8}$/;
- const palette=['#dec3f0','#f7d0ac','#bce9d1','#b9d7f5','#f9bdcb','#d7edaa','#ead0f4','#f6e79f','#a7dceb','#d7c9b3','#f3bca9'];
+ const palette=['#e5acd3','#f5be79','#78c88a','#8bc6eb','#b394e0','#e9d668','#61bfb5','#ed998e','#7c98db','#aacb70','#c7b4a5'];
  const assets=['phantom-1.png','phantom-2.png','phantom-3.png','phantom-4.png'];
  let room=null,peer=null,connection=null,account=null,marks=Array(C.SIZE).fill(0);
  let misses=0,eliminated=false,pendingGuess=null,confirmed=new Set(),attempted=new Set();
