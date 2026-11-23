@@ -33,21 +33,93 @@ function solutionCount(regions,clues=[],limit=2){
  }
  visit(0,0,0,-1);return count;
 }
+// Deterministic deduction only: single-candidate, locked unit and 2-3-unit Hall sets.
+function logicalSolve(regions,clues=[]){
+ const allowed=new Uint8Array(SIZE).fill(1),chosen=new Set();
+ const units=[...Array.from({length:N},(_,r)=>Array.from({length:N},(_,c)=>r*N+c)),
+              ...Array.from({length:N},(_,c)=>Array.from({length:N},(_,r)=>r*N+c)),
+              ...Array.from({length:N},(_,g)=>Array.from({length:SIZE},(_,i)=>i).filter(i=>regions[i]===g))];
+ for(const i of clues)if(i>=0&&i<SIZE)allowed[i]=0;
+ function remove(i){if(!allowed[i])return false;allowed[i]=0;return true;}
+ function place(i){
+  if(!allowed[i])return false;
+  for(const j of chosen){const r=Math.floor(i/N),c=i%N,rr=Math.floor(j/N),cc=j%N;
+   if(r===rr||c===cc||regions[i]===regions[j]||(Math.abs(r-rr)<=1&&Math.abs(c-cc)<=1))return false;
+  }
+  chosen.add(i);const r=Math.floor(i/N),c=i%N;
+  for(let j=0;j<SIZE;j++)if(j!==i&&(Math.floor(j/N)===r||j%N===c||regions[j]===regions[i]||
+    (Math.abs(Math.floor(j/N)-r)<=1&&Math.abs(j%N-c)<=1)))remove(j);
+  return true;
+ }
+ let operations=0;
+ for(let pass=0;pass<150;pass++){
+  let changed=false;
+  // Standard removal: if a row, column or color region has one candidate, mark it.
+  for(const unit of units){
+   const candidates=unit.filter(i=>allowed[i]);
+   if(!candidates.length)return {solved:false,contradiction:true,operations};
+   if(candidates.length===1&&!chosen.has(candidates[0])){if(!place(candidates[0]))return {solved:false,contradiction:true,operations};changed=true;operations++;}
+  }
+  if(chosen.size===N)return {solved:true,contradiction:false,operations};
+  // Adjacent rows: an impossible neighbor pair is an ordinary deterministic exclusion.
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+   const i=r*N+c;if(!allowed[i])continue;
+   for(const nr of [r-1,r+1])if(nr>=0&&nr<N){
+    let viable=false;
+    for(let nc=0;nc<N;nc++)if(Math.abs(nc-c)>1&&allowed[nr*N+nc]){viable=true;break;}
+    if(!viable){if(remove(i)){changed=true;operations++;}break;}
+   }
+  }
+  // Locked candidates: all choices of one unit lie in one intersecting other unit.
+  for(let a=0;a<units.length;a++){
+   const opts=units[a].filter(i=>allowed[i]);if(!opts.length)return {solved:false,contradiction:true,operations};
+   for(let b=0;b<units.length;b++)if(a!==b&&opts.every(i=>units[b].includes(i))){
+    for(const i of units[b])if(!units[a].includes(i)&&remove(i)){changed=true;operations++;}
+   }
+  }
+  // Grouping (묶음소거): if 2 or 3 rows/columns/regions claim exactly
+  // the same number of opposite units, exclude those units elsewhere.
+  for(let sourceFamily=0;sourceFamily<3;sourceFamily++)for(let targetFamily=0;targetFamily<3;targetFamily++){
+   if(sourceFamily===targetFamily)continue;
+   const offset=sourceFamily*N,targetOffset=targetFamily*N;
+   const masks=Array.from({length:N},(_,a)=>{
+    let mask=0;
+    for(const i of units[offset+a])if(allowed[i])mask|=1<<(targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i]);
+    return mask;
+   });
+   function eliminate(group,mask){
+    if(mask.toString(2).replace(/0/g,'').length!==group.length)return false;
+    let made=false;
+    for(let i=0;i<SIZE;i++)if(allowed[i]){
+     const source=sourceFamily===0?Math.floor(i/N):sourceFamily===1?i%N:regions[i];
+     const target=targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i];
+     if(!group.includes(source)&&(mask&(1<<target))&&remove(i)){made=true;operations++;}
+    }
+    return made;
+   }
+   for(let a=0;a<N;a++)for(let b=a+1;b<N;b++){
+    if(eliminate([a,b],masks[a]|masks[b]))changed=true;
+    for(let c=b+1;c<N;c++)if(eliminate([a,b,c],masks[a]|masks[b]|masks[c]))changed=true;
+   }
+  }
+  if(!changed)break;
+ }
+ return {solved:chosen.size===N,contradiction:false,operations};
+}
 function makePuzzle(){
- let best=null;
- for(let attempt=0;attempt<12;attempt++){
-  const solution=makeSolution(),regions=makeRegions(solution),correct=new Set(solution.map((c,r)=>r*N+c));
-  const candidates=shuffle(Array.from({length:SIZE},(_,i)=>i).filter(i=>!correct.has(i)));
-  const clues=[];
-  while(solutionCount(regions,clues)>1&&candidates.length)clues.push(candidates.pop());
-  if(!best||clues.length<best.clues.length)best={regions,clues,solution,variantOffset:rand(4)};
-  if(clues.length<=24)break;
+ const solution=makeSolution(),regions=makeRegions(solution);
+ const safe=new Set(solution.map((c,r)=>r*N+c));
+ const candidates=shuffle(Array.from({length:SIZE},(_,i)=>i).filter(i=>!safe.has(i)));
+ const clues=[];
+ // Pre-exclude a moderate number of positions, then add only as necessary
+ // until normal and group elimination alone can finish the puzzle.
+ for(let i=0;i<28;i++)clues.push(candidates.pop());
+ let check=logicalSolve(regions,clues);
+ while(!check.solved&&candidates.length){
+  clues.push(candidates.pop());check=logicalSolve(regions,clues);
  }
- for(const i of shuffle(best.clues.slice())){
-  const fewer=best.clues.filter(x=>x!==i);
-  if(solutionCount(best.regions,fewer)===1)best.clues=fewer;
- }
- return best;
+ if(!check.solved)throw Error('논리 퍼즐 생성 실패');
+ return {solution,regions,clues,variantOffset:rand(4),difficulty:'normal-and-group'};
 }
 function isSolved(cols,regions,clues=[]){
  if(!Array.isArray(cols)||cols.length!==N||!Array.isArray(regions)||regions.length!==SIZE)return false;
@@ -60,6 +132,6 @@ function isSolved(cols,regions,clues=[]){
  }
  return usedCols.size===N&&usedRegions.size===N;
 }
-const api={N,SIZE,makePuzzle,isSolved,solutionCount};
+const api={N,SIZE,makePuzzle,isSolved,solutionCount,logicalSolve};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PhantomCore=api;
 })(typeof window!=='undefined'?window:globalThis);
