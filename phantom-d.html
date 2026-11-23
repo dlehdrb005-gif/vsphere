@@ -23,7 +23,12 @@ main{max-width:1080px;padding:24px 16px 64px;margin:0 auto}
 .cell:hover:not(:disabled){box-shadow:inset 0 0 0 2px #ffffff77;z-index:1}
 .cell:active:not(:disabled){filter:brightness(.9)}
 .cell img{width:97%;height:97%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 1px 1px #0005)}
-.cell .cross{font-size:clamp(13px,2.2vw,24px);font-weight:800;opacity:.7;line-height:1}.cell:focus-visible{outline:3px solid #faf0a1;outline-offset:-3px;z-index:2}.cell:hover{filter:brightness(1.07)}
+.cell .cross{font-size:clamp(13px,2.2vw,24px);font-weight:800;opacity:.7;line-height:1}
+.cell .wrong-cross{color:#e11b36;font-size:clamp(23px,4.4vw,40px);font-weight:950;opacity:1;line-height:1;text-shadow:0 1px 0 #fff9,0 2px 7px #710b2466}
+.cell.wrong-guess{box-shadow:inset 0 0 0 2px #e11b3666}
+.cell.revealed-answer{box-shadow:inset 0 0 0 2px #ffef9c}
+.cell.revealed-answer img{filter:drop-shadow(0 0 4px #ffed8a)}
+.cell:focus-visible{outline:3px solid #faf0a1;outline-offset:-3px;z-index:2}.cell:hover{filter:brightness(1.07)}
 .cell.conflict{box-shadow:inset 0 0 0 3px #e45e78}
 .toolset{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 8px;justify-content:center}
 .toolset button{background:#303650;border:1px solid #697091;padding:9px 16px;border-radius:9px;min-height:43px;min-width:106px;font-weight:700}.toolset button[aria-pressed=true]{background:#654b89;border-color:#d4a9ff;box-shadow:0 0 0 2px #9b6bc933}.game-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
@@ -40,7 +45,7 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <script src="color-tiles-firebase.js" defer></script>
 <script src="phantom-bank.js?v=20261123-balanced3" defer></script>
 <script src="phantom-core.js?v=20261123-balanced3" defer></script>
-<script src="phantom-d.js?v=20261123-drag4" defer></script>
+<script src="phantom-d.js?v=20261123-reveal5" defer></script>
 </head>
 <body>
 <header><a href="/">← VSPHERE</a><span>MINIGAME · DETECTIVE CASE 001</span></header>
@@ -64,14 +69,14 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <section class="panel board-panel">
 <div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">검거 <b id="found">0</b> / 11 · 실수 <b id="misses">0</b> / 3 · <b id="clock">00:00</b></span><button id="soundBtn" type="button" aria-pressed="true" style="border:1px solid #6f6880;border-radius:9px;background:#302c43;color:#fff;padding:7px 10px;min-height:36px;cursor:pointer">🔊 효과음 켜짐</button></div>
 <div id="board" class="board" role="group" aria-label="괴도 D 11×11 논리 퍼즐"></div>
-<p class="note" style="text-align:center;margin:14px 0">한 번 클릭·탭: <strong>✕ 표시 / 해제</strong>　|　더블클릭·두 번 탭: <strong>🎩 괴도 지목</strong><br>누른 채 드래그: <strong>여러 칸 X 표시 또는 지우기</strong> (첫 칸의 상태로 결정)</p>
+<p class="note" style="text-align:center;margin:14px 0">한 번 클릭·탭: <strong>✕ 표시 / 해제</strong>　|　더블클릭·두 번 탭: <strong>🎩 괴도 지목</strong><br>누른 채 드래그: <strong>여러 칸 X 표시 또는 지우기</strong> (첫 칸의 상태로 결정)<br>오답을 지목하면 <strong style="color:#ff5268">빨간 X</strong>, 오답 3회로 게임오버가 되면 <strong>정답 위치 11곳이 공개</strong>됩니다.</p>
 <div class="game-actions"><button id="clearBtn" type="button">내 X 표시 초기화</button><button id="restartSolo" class="primary" type="button" hidden>새 사건 시작</button></div>
 <div id="result" class="result" hidden><h3 id="resultTitle"></h3><p id="resultDetail"></p></div>
 </section>
 <aside class="panel aside">
 <h3>📜 사건 기록</h3><div class="prize" aria-hidden="true">💎</div>
 <p><strong>사건:</strong> 고가의 보석을 훔친 괴도 D의 이동 흔적이 각 구역에 하나씩 남아 있다.</p>
-<ul><li>각 <strong>가로줄·세로줄</strong>에 괴도는 정확히 한 명</li><li>각 <strong>색깔 구역</strong>에도 정확히 한 명</li><li>괴도끼리는 <strong>대각선으로도 붙을 수 없다</strong></li><li><strong>처음부터 X가 표시되지 않아요.</strong> 색 구역의 크기·모양과 행·열 규칙을 이용하세요.</li><li>괴도 11곳을 <strong>정확히 지목하면 자동으로 사건 해결!</strong></li><li><strong>오답 3회</strong>면 해당 탐정 게임오버 (다른 참가자는 계속 수사)</li></ul>
+<ul><li>각 <strong>가로줄·세로줄</strong>에 괴도는 정확히 한 명</li><li>각 <strong>색깔 구역</strong>에도 정확히 한 명</li><li>괴도끼리는 <strong>대각선으로도 붙을 수 없다</strong></li><li><strong>처음부터 X가 표시되지 않아요.</strong> 색 구역의 크기·모양과 행·열 규칙을 이용하세요.</li><li>괴도 11곳을 <strong>정확히 지목하면 자동으로 사건 해결!</strong></li><li><strong>오답 3회</strong>면 게임오버, 해당 탐정 화면에 괴도 D의 정답 위치 11곳 공개 (다른 참가자는 계속 수사)</li></ul>
 <p>색 구역과 괴도 위치는 매 판 무작위로 달라져요. <strong>22~32칸의 메인 색 구역</strong>과 <strong>한 칸짜리 구역 정확히 1개</strong>, 나머지 중간 크기 구역이 배치되고, 일반소거·묶음소거만으로 해결 가능하도록 만들어져요. 괴도 이미지 4종도 번갈아 나타나요.</p>
 <p>모바일: 탭은 X 표시·해제, 두 번 탭하면 괴도 지목, 손가락으로 드래그하면 여러 칸 X 표시·삭제<br>PC: 클릭은 X 표시·해제, 더블클릭은 괴도 지목, 드래그는 여러 칸 X 표시·삭제 · 우클릭도 X<br><strong>괴도를 잘못 지목한 횟수만</strong> 오답으로 집계돼요. X 표시 실수는 패널티가 없어요.</p>
 <p>멀티: 모든 참가자가 같은 사건을 각각 풀어요. <strong>가장 먼저 괴도 11명을 전부 검거하면 승리</strong>하고 전원 경기가 끝나요. 오답 3회로 탈락한 사람은 관전할 수 있어요.</p>
