@@ -109,16 +109,16 @@ function logicalSolve(regions,clues=[]){
 function makePuzzle(){
  const solution=makeSolution(),regions=makeRegions(solution);
  const safe=new Set(solution.map((c,r)=>r*N+c));
- const candidates=shuffle(Array.from({length:SIZE},(_,i)=>i).filter(i=>!safe.has(i)));
- const clues=[];
- // Pre-exclude a moderate number of positions, then add only as necessary
- // until normal and group elimination alone can finish the puzzle.
- for(let i=0;i<28;i++)clues.push(candidates.pop());
- let check=logicalSolve(regions,clues);
- while(!check.solved&&candidates.length){
-  clues.push(candidates.pop());check=logicalSolve(regions,clues);
+ let clues=Array.from({length:SIZE},(_,i)=>i).filter(i=>!safe.has(i));
+ const order=shuffle([...clues]),target=39+rand(6);
+ // Start with an obvious puzzle and remove hints while a strict logic solver
+ // can still finish without search/guessing. At least ~39-44 pre-crosses remain.
+ for(const i of order){
+  if(clues.length<=target)break;
+  const trial=clues.filter(x=>x!==i);
+  if(logicalSolve(regions,trial).solved)clues=trial;
  }
- if(!check.solved)throw Error('논리 퍼즐 생성 실패');
+ if(!logicalSolve(regions,clues).solved)throw Error('논리 퍼즐 생성 실패');
  return {solution,regions,clues,variantOffset:rand(4),difficulty:'normal-and-group'};
 }
 function isSolved(cols,regions,clues=[]){
