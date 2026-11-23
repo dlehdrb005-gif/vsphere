@@ -6,7 +6,7 @@
  const palette=['#e5acd3','#f5be79','#78c88a','#8bc6eb','#b394e0','#e9d668','#61bfb5','#ed998e','#7c98db','#aacb70','#c7b4a5'];
  const assets=['phantom-1.png','phantom-2.png','phantom-3.png','phantom-4.png'];
  let room=null,peer=null,connection=null,account=null,marks=Array(C.SIZE).fill(0);
- let misses=0,eliminated=false,pendingGuess=null,confirmed=new Set(),attempted=new Set();
+ let misses=0,eliminated=false,pendingGuess=null,confirmed=new Set(),attempted=new Set(),revealedSolution=null;
  let lastClick=null,clickTimer=null,lastGuess=null,stroke=null;
  let boardData=null,phase='waiting',solo=false,startedAt=0,winner=null,round=0,roomCode='',isHost=false,busy=false,selection=0;
  const connections=new Map();
@@ -53,22 +53,30 @@
  function say(s,error=false){$('status').textContent=s;$('status').classList.toggle('warning',error);}
  function name(){const s=$('nick').value.trim().replace(/[<>]/g,'').slice(0,20);if(!s){say('탐정 닉네임을 입력해주세요.',true);$('nick').focus();return null;}try{localStorage.setItem('vsphere-phantom-name',s);}catch(_){ }return s;}
  function randomCode(){const abc='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(8))].map(v=>abc[v%abc.length]).join('');}
- function resetMarks(){marks=Array(C.SIZE).fill(0);for(const i of confirmed)marks[i]=1;updateBoard();}
- function resetRound(){misses=0;eliminated=false;pendingGuess=null;confirmed=new Set();attempted=new Set();lastClick=null;lastGuess=null;stroke=null;clearTimeout(clickTimer);clickTimer=null;marks=Array(C.SIZE).fill(0);}
+ function resetMarks(){marks=marks.map(v=>v===3?3:0);for(const i of confirmed)marks[i]=1;updateBoard();}
+ function resetRound(){misses=0;eliminated=false;pendingGuess=null;confirmed=new Set();attempted=new Set();lastClick=null;lastGuess=null;stroke=null;revealedSolution=null;clearTimeout(clickTimer);clickTimer=null;marks=Array(C.SIZE).fill(0);}
  function progress(){return confirmed.size;}
  function canPlay(){return phase==='playing'&&!!boardData&&!eliminated;}
  function renderBoard(){
   const host=$('board');host.replaceChildren();
   if(!boardData){for(let i=0;i<C.SIZE;i++){const tile=document.createElement('button');tile.type='button';tile.className='cell';tile.disabled=true;tile.style.setProperty('--tile-color',palette[(Math.floor(i/C.N)+Math.floor(i%C.N/2))%palette.length]);host.append(tile);}return;}
+  const reveals=new Set(Array.isArray(revealedSolution)?revealedSolution:[]);
   for(let i=0;i<C.SIZE;i++){
    const reg=boardData.regions[i],r=Math.floor(i/C.N),c=i%C.N;
    const tile=document.createElement('button');tile.type='button';tile.className='cell';tile.dataset.i=String(i);
    tile.style.setProperty('--tile-color',palette[reg%palette.length]);
-   tile.disabled=!canPlay()||confirmed.has(i);
-   tile.setAttribute('aria-label',`${r+1}행 ${c+1}열 ${marks[i]===1?'괴도 발견':marks[i]===2?'소거 표시':'빈 칸'}`);
+   tile.disabled=!canPlay()||confirmed.has(i)||attempted.has(i);
+   tile.setAttribute('aria-label',`${r+1}행 ${c+1}열 ${marks[i]===1?'괴도 발견':reveals.has(i)?'공개된 정답 위치':marks[i]===3?'오답 지목':marks[i]===2?'소거 표시':'빈 칸'}`);
    tile.title=`${r+1}행 ${c+1}열`;
-   if(marks[i]===1){const img=document.createElement('img');img.alt='괴도 D';img.src=assets[(r+boardData.variantOffset)%assets.length];tile.append(img);}
-   else if(marks[i]===2){const x=document.createElement('span');x.className='cross';x.textContent='×';tile.append(x);}
+   if(marks[i]===1||reveals.has(i)){
+    if(reveals.has(i)&&marks[i]!==1)tile.classList.add('revealed-answer');
+    const img=document.createElement('img');img.alt=marks[i]===1?'검거한 괴도 D':'정답: 괴도 D';img.src=assets[(r+boardData.variantOffset)%assets.length];tile.append(img);
+   }else if(marks[i]===3){
+    tile.classList.add('wrong-guess');
+    const x=document.createElement('span');x.className='cross wrong-cross';x.textContent='×';tile.append(x);
+   }else if(marks[i]===2){
+    const x=document.createElement('span');x.className='cross';x.textContent='×';tile.append(x);
+   }
    host.append(tile);
   }
  }
@@ -87,7 +95,7 @@
   if(!canPlay())return;
   let changed=false;
   for(const i of indices){
-   if(!Number.isInteger(i)||i<0||i>=C.SIZE||boardData.clues.includes(i)||confirmed.has(i)||marks[i]===value)continue;
+   if(!Number.isInteger(i)||i<0||i>=C.SIZE||boardData.clues.includes(i)||confirmed.has(i)||attempted.has(i)||marks[i]===value)continue;
    marks[i]=value;changed=true;
   }
   if(changed){playSound('cross');updateBoard();}
@@ -101,11 +109,14 @@
   pendingGuess=null;attempted.add(msg.index);
   misses=msg.misses;eliminated=Boolean(msg.eliminated);
   if(msg.correct){confirmed.add(msg.index);marks[msg.index]=1;}
-  else marks[msg.index]=2;
+  else marks[msg.index]=3;
+  if(msg.eliminated&&Array.isArray(msg.solution)&&msg.solution.length===C.N){
+   revealedSolution=msg.solution.map((c,r)=>r*C.N+c);
+  }
   updateBoard();
   playSound(msg.correct?'found':'wrong');
   if(eliminated){showResult('⛔ 게임 오버','틀린 위치를 세 번 지목했습니다. 이번 사건은 더 이상 수사할 수 없어요.');
-   say('오답 3회! 이번 판은 게임 오버입니다. 다른 탐정의 결과를 기다려주세요.',true);
+   say('오답 3회! 정답 위치가 공개됐어요. 다른 탐정들의 결과를 기다려주세요.',true);
   }else if(msg.correct){
    say(`✅ 괴도 D 검거! ${confirmed.size}/11명 발견 · 오답 ${misses}/3`);
   }else say(`❌ 해당 칸에는 괴도가 없어요. 오답 ${misses}/3`,true);
@@ -122,6 +133,8 @@
   if(correct)p.found++;else p.misses++;
   if(p.misses>=3)p.eliminated=true;
   const result={type:'guess-result',round:room.round,index,correct,misses:p.misses,found:p.found,eliminated:p.eliminated};
+  // Private: only the eliminated player receives the answer during an active round.
+  if(p.eliminated)result.solution=room.game.solution.slice();
   if(conn)conn.send(result);else receiveGuess(result);
   if(correct&&p.found===C.N)win(uid,p.name);
   else if([...room.players.values()].every(x=>x.eliminated)){room.phase='ended';room.winner=null;broadcast();}
@@ -136,7 +149,12 @@
    const row=Math.floor(i/C.N),correct=boardData.solution[row]===i%C.N;
    if(correct)confirmed.add(i);else misses++;
    const result={type:'guess-result',round,index:i,correct,misses,eliminated:misses>=3};
+   if(result.eliminated)result.solution=boardData.solution.slice();
    receiveGuess(result);
+   if(result.eliminated){
+    phase='ended';winner=null;updateBoard();
+    showResult('⛔ 게임 오버 · 정답 공개','오답 3회로 수사가 종료됐어요. 괴도 D의 정답 위치 11곳을 확인하고 새 사건에 도전하세요.');
+   }
    if(correct&&confirmed.size===C.N){
     phase='ended';winner={uid:'solo',name:'탐정'};updateBoard();
     showResult('💎 사건 해결!','괴도 D의 모든 흔적을 찾아냈어요! 새로운 판도 도전해 보세요.');
@@ -167,7 +185,7 @@
  }
  function state(){
   return {type:'state',phase:room.phase,round:room.round,
-   game:room.game?{regions:room.game.regions,clues:room.game.clues,variantOffset:room.game.variantOffset}:null,
+   game:room.game?{regions:room.game.regions,clues:room.game.clues,variantOffset:room.game.variantOffset,...(room.phase==='ended'?{solution:room.game.solution.slice()}:{})}:null,
    startedAt:room.startedAt,winner:room.winner,players:[...room.players.values()]};
  }
  function broadcast(){if(!room||!isHost)return;const message=state();for(const conn of connections.values())if(conn.open)conn.send(message);applyState(message);}
@@ -176,6 +194,8 @@
   room&&(room.phase=info.phase,room.round=info.round,room.startedAt=info.startedAt,room.winner=info.winner);
   if(changed)resetRound();
   round=info.round;phase=info.phase;boardData=info.game;winner=info.winner;startedAt=info.startedAt;
+  if(phase==='ended'&&Array.isArray(info.game?.solution)&&info.game.solution.length===C.N)
+   revealedSolution=info.game.solution.map((c,r)=>r*C.N+c);
   playersView(info.players||[]);
   const mine=info.players?.find(p=>p.uid===account?.uid);
   if(mine){misses=mine.misses||0;eliminated=!!mine.eliminated;}
@@ -187,10 +207,10 @@
   $('roomCode').textContent=roomCode;
   $('setup').hidden=true;$('roomControls').hidden=false;
   hideResult();if(phase==='ended'){
-   showResult(winner?.name?`🏆 ${winner.name} 탐정 승리!`:'⛔ 전원 게임오버',winner?'가장 먼저 괴도 D 11곳을 전부 찾아냈어요.':'모든 탐정이 오답 3회로 탈락했어요.');
+   showResult(winner?.name?`🏆 ${winner.name} 탐정 승리!`:'⛔ 전원 게임오버 · 정답 공개',winner?'가장 먼저 괴도 D 11곳을 전부 찾아냈어요. 정답 위치도 공개됐어요.':'모든 탐정이 오답 3회로 탈락했어요. 정답 위치 11곳을 확인하세요.');
    say(winner?'사건 해결! 방장이 다음 사건을 준비할 수 있습니다.':'전원 게임오버! 방장이 다음 사건을 준비할 수 있습니다.');
   }else if(phase==='playing'){
-   if(eliminated){showResult('⛔ 게임 오버','틀린 위치를 세 번 지목했어요. 다른 탐정이 수사하는 동안 관전할 수 있습니다.');say('오답 3회로 탈락했습니다. 현재 다른 탐정들의 수사 진행을 볼 수 있어요.',true);}
+   if(eliminated){showResult('⛔ 게임 오버 · 정답 공개','틀린 위치를 세 번 지목했어요. 괴도 D의 정답 위치가 공개됐습니다. 다른 탐정들의 수사를 관전할 수 있습니다.');say('오답 3회로 탈락했습니다. 현재 다른 탐정들의 수사 진행을 볼 수 있어요.',true);}
    else if(changed)say('수사 시작! 한 번 누르면 X, 더블클릭하면 괴도를 지목해요.');
   }
   else say('방장이 시작하면 같은 사건을 각자 풀게 됩니다. 참가자는 준비 버튼을 눌러주세요.');
