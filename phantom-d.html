@@ -17,9 +17,9 @@ main{max-width:1080px;padding:24px 16px 64px;margin:0 auto}
 .room-head{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.code{background:#101020;border:1px dashed #9377b9;border-radius:8px;padding:5px 9px;font-weight:800;color:#f6d896;letter-spacing:2px}
 .players{display:flex;flex-wrap:wrap;gap:8px}.player{font-size:13px;background:#282f48;border-radius:8px;padding:7px 10px;border:1px solid #525a77}.player.ready{border-color:#92c7a2}.player.winner{background:#624a26;border-color:#edcb78}
 .play{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,270px);gap:18px;align-items:start}
-.board-panel{min-width:0}.board-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.phase{color:var(--gold);font-weight:800}.stat{color:var(--muted);font-size:14px}
-.board{--tile:calc(100% / 11);width:min(100%,590px);margin:0 auto;display:grid;grid-template-columns:repeat(11,minmax(0,1fr));aspect-ratio:1;border:3px solid #080c19;border-radius:7px;overflow:hidden;touch-action:manipulation;background:#c6bbd8}
-.cell{position:relative;min-width:0;min-height:0;padding:0;border-style:solid;border-color:#343042;background:var(--tile-color);display:flex;justify-content:center;align-items:center;color:#4d4255;aspect-ratio:1}.cell img{width:97%;height:97%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 1px 1px #0005)}
+.board-panel{min-width:0}.board-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.phase{color:var(--gold);font-weight:800}.stat{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.board{--tile:calc(100% / 11);width:min(100%,590px);margin:0 auto;display:grid;grid-template-columns:repeat(11,minmax(0,1fr));aspect-ratio:1;border:3px solid #080c19;border-radius:7px;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;background:#c6bbd8}
+.cell{position:relative;min-width:0;min-height:0;padding:0;touch-action:manipulation;border-style:solid;border-color:#343042;background:var(--tile-color);display:flex;justify-content:center;align-items:center;color:#4d4255;aspect-ratio:1}.cell img{width:97%;height:97%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 1px 1px #0005)}
 .cell .cross{font-size:clamp(13px,2.2vw,24px);font-weight:800;opacity:.7;line-height:1}.cell.clue .cross{color:#4a3757;opacity:.52}.cell:focus-visible{outline:3px solid #faf0a1;outline-offset:-3px;z-index:2}.cell:hover{filter:brightness(1.07)}
 .cell.conflict{box-shadow:inset 0 0 0 3px #e45e78}
 .toolset{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 8px;justify-content:center}
@@ -35,13 +35,13 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js" defer></script>
 <script src="firebase-config.js" defer></script>
 <script src="color-tiles-firebase.js" defer></script>
-<script src="phantom-core.js" defer></script>
-<script src="phantom-d.js" defer></script>
+<script src="phantom-core.js?v=20261123-easy1" defer></script>
+<script src="phantom-d.js?v=20261123-easy1" defer></script>
 </head>
 <body>
 <header><a href="/">← VSPHERE</a><span>MINIGAME · DETECTIVE CASE 001</span></header>
 <main>
-<section class="hero"><div class="eyebrow">PHANTOM THIEF D · CASE FILE</div><h1>괴도 <span>D</span>를 찾아라</h1><p>값비싼 보물이 사라졌다! 11×11 사건 현장에서 괴도 D의 흔적을 찾아라.<br>먼저 모든 괴도를 찾아내는 탐정이 승리한다.</p></section>
+<section class="hero"><div class="eyebrow">PHANTOM THIEF D · CASE FILE</div><h1>괴도 <span>D</span>를 찾아라</h1><p>값비싼 보물이 사라졌다! 11×11 사건 현장에서 괴도 D의 흔적을 찾아라.<br>먼저 괴도 11명의 위치를 모두 알아내는 탐정이 승리한다. 오답은 3회까지!</p></section>
 <section class="panel" aria-label="시청자 참여 게임방">
 <h2>🕵️ 탐정 수사본부 · 시청자 참여</h2>
 <div id="setup">
@@ -58,19 +58,19 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 </section>
 <div class="play">
 <section class="panel board-panel">
-<div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">발견 <b id="found">0</b> / 11 · <b id="clock">00:00</b></span></div>
+<div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">검거 <b id="found">0</b> / 11 · 실수 <b id="misses">0</b> / 3 · <b id="clock">00:00</b></span></div>
 <div id="board" class="board" role="group" aria-label="괴도 D 11×11 논리 퍼즐"></div>
-<div class="toolset" role="group" aria-label="표시 도구"><button id="thiefTool" type="button" aria-pressed="true">🎩 괴도 표시</button><button id="crossTool" type="button" aria-pressed="false">✕ 소거 표시</button></div>
-<div class="game-actions"><button id="clearBtn" type="button">내 표시 초기화</button><button id="checkBtn" class="primary" type="button">수사 결과 제출</button></div>
+<p class="note" style="text-align:center;margin:14px 0">한 번 클릭·터치: <strong>✕ 소거</strong>　|　더블클릭·두 번 탭: <strong>🎩 괴도 지목</strong></p>
+<div class="game-actions"><button id="clearBtn" type="button">내 X 표시 초기화</button><button id="restartSolo" class="primary" type="button" hidden>새 사건 시작</button></div>
 <div id="result" class="result" hidden><h3 id="resultTitle"></h3><p id="resultDetail"></p></div>
 </section>
 <aside class="panel aside">
 <h3>📜 사건 기록</h3><div class="prize" aria-hidden="true">💎</div>
 <p><strong>사건:</strong> 고가의 보석을 훔친 괴도 D의 이동 흔적이 각 구역에 하나씩 남아 있다.</p>
-<ul><li>각 <strong>가로줄·세로줄</strong>에 괴도는 정확히 한 명</li><li>각 <strong>색깔 구역</strong>에도 정확히 한 명</li><li>괴도끼리는 <strong>대각선으로도 붙을 수 없다</strong></li><li>희미한 X는 사건 현장에서 확보한 <strong>배제 단서</strong></li><li>모든 11개 위치를 찾아 제출하면 사건 해결!</li></ul>
+<ul><li>각 <strong>가로줄·세로줄</strong>에 괴도는 정확히 한 명</li><li>각 <strong>색깔 구역</strong>에도 정확히 한 명</li><li>괴도끼리는 <strong>대각선으로도 붙을 수 없다</strong></li><li>희미한 X는 사건 현장에서 확보한 <strong>배제 단서</strong></li><li>괴도 11곳을 <strong>정확히 지목하면 자동으로 사건 해결!</strong></li><li><strong>오답 3회</strong>면 해당 탐정 게임오버 (다른 참가자는 계속 수사)</li></ul>
 <p>색 구역과 괴도 위치는 매 판 무작위로 바뀌며 괴도 이미지 4종이 번갈아 나타나요.</p>
-<p>모바일: 표시 도구 선택 후 칸 누르기<br>PC: 클릭으로 표시 · 우클릭으로 X</p>
-<p>멀티: 모든 참가자가 같은 사건을 각각 풀어요. <strong>가장 먼저 정답 제출에 성공한 한 명이 승리</strong>하면 전원 종료됩니다.</p>
+<p>모바일: 한 번 탭은 X, 같은 칸을 빠르게 두 번 탭하면 괴도 지목<br>PC: 클릭은 X, 더블클릭은 괴도 지목 · 우클릭도 X<br><strong>괴도를 잘못 지목한 횟수만</strong> 오답으로 집계돼요. X 표시 실수는 패널티가 없어요.</p>
+<p>멀티: 모든 참가자가 같은 사건을 각각 풀어요. <strong>가장 먼저 괴도 11명을 전부 검거하면 승리</strong>하고 전원 경기가 끝나요. 오답 3회로 탈락한 사람은 관전할 수 있어요.</p>
 </aside>
 </div>
 </main><footer>VSPHERE · 괴도 D를 찾아라</footer>
