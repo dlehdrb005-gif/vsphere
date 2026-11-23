@@ -7,7 +7,7 @@
  const assets=['phantom-1.png','phantom-2.png','phantom-3.png','phantom-4.png'];
  let room=null,peer=null,connection=null,account=null,marks=Array(C.SIZE).fill(0);
  let misses=0,eliminated=false,pendingGuess=null,confirmed=new Set(),attempted=new Set();
- let lastClick=null,clickTimer=null,lastGuess=null;
+ let lastClick=null,clickTimer=null,lastGuess=null,stroke=null;
  let boardData=null,phase='waiting',solo=false,startedAt=0,winner=null,round=0,roomCode='',isHost=false,busy=false,selection=0;
  const connections=new Map();
  let soundEnabled=true,audioContext=null;
@@ -54,7 +54,7 @@
  function name(){const s=$('nick').value.trim().replace(/[<>]/g,'').slice(0,20);if(!s){say('탐정 닉네임을 입력해주세요.',true);$('nick').focus();return null;}try{localStorage.setItem('vsphere-phantom-name',s);}catch(_){ }return s;}
  function randomCode(){const abc='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(8))].map(v=>abc[v%abc.length]).join('');}
  function resetMarks(){marks=Array(C.SIZE).fill(0);for(const i of confirmed)marks[i]=1;updateBoard();}
- function resetRound(){misses=0;eliminated=false;pendingGuess=null;confirmed=new Set();attempted=new Set();lastClick=null;lastGuess=null;clearTimeout(clickTimer);marks=Array(C.SIZE).fill(0);}
+ function resetRound(){misses=0;eliminated=false;pendingGuess=null;confirmed=new Set();attempted=new Set();lastClick=null;lastGuess=null;stroke=null;clearTimeout(clickTimer);clickTimer=null;marks=Array(C.SIZE).fill(0);}
  function progress(){return confirmed.size;}
  function canPlay(){return phase==='playing'&&!!boardData&&!eliminated;}
  function renderBoard(){
@@ -83,9 +83,18 @@
   if(startedAt&&phase!=='waiting')updateClock();
  }
  function updateClock(){if(!startedAt)return;const seconds=Math.max(0,Math.floor((Date.now()-startedAt)/1000)),m=Math.floor(seconds/60),s=seconds%60;$('clock').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+ function paint(indices,value){
+  if(!canPlay())return;
+  let changed=false;
+  for(const i of indices){
+   if(!Number.isInteger(i)||i<0||i>=C.SIZE||boardData.clues.includes(i)||confirmed.has(i)||marks[i]===value)continue;
+   marks[i]=value;changed=true;
+  }
+  if(changed){playSound('cross');updateBoard();}
+ }
  function mark(i){
-  if(!canPlay()||boardData.clues.includes(i)||confirmed.has(i))return;
-  marks[i]=marks[i]===2?0:2;selection=i;playSound('cross');updateBoard();
+  if(!Number.isInteger(i)||i<0||i>=C.SIZE)return;
+  paint([i],marks[i]===2?0:2);
  }
  function receiveGuess(msg){
   if(!msg||msg.round!==round||!Number.isInteger(msg.index))return;
@@ -275,30 +284,109 @@
  };
  $('clearBtn').onclick=()=>{if(canPlay())resetMarks();};
  $('restartSolo').onclick=soloStart;
+ const boardElement=$('board');
+ const DOUBLE_TAP_MS=330;
  function cancelSingle(){clearTimeout(clickTimer);clickTimer=null;lastClick=null;}
- $('board').addEventListener('click',event=>{
-  const cell=event.target.closest('[data-i]');if(!cell)return;
-  soundEngine(); // Unlock mobile audio on the actual touch/click gesture.
-  const i=Number(cell.dataset.i);
-  if(event.detail===0){mark(i);return;}
-  const timestamp=Date.now();
-  if(lastClick&&lastClick.i===i&&timestamp-lastClick.at<380){
-   cancelSingle();guess(i);return;
+ function flushSingle(){
+  if(!lastClick)return;
+  const index=lastClick.i;cancelSingle();mark(index);
+ }
+ function tileAtPosition(x,y){
+  const rect=boardElement.getBoundingClientRect();
+  if(x<rect.left||y<rect.top||x>=rect.right||y>=rect.bottom)return -1;
+  const c=Math.min(C.N-1,Math.floor((x-rect.left)/rect.width*C.N));
+  const r=Math.min(C.N-1,Math.floor((y-rect.top)/rect.height*C.N));
+  return r*C.N+c;
+ }
+ // Interpolate across skipped cells so fast mouse and touch swipes form one line.
+ function crossedCells(from,to){
+  const ax=from%C.N,ay=Math.floor(from/C.N),bx=to%C.N,by=Math.floor(to/C.N);
+  const steps=Math.max(Math.abs(bx-ax),Math.abs(by-ay)),result=[];
+  for(let n=0;n<=steps;n++){
+   const r=steps?Math.round(ay+(by-ay)*n/steps):ay;
+   const c=steps?Math.round(ax+(bx-ax)*n/steps):ax;
+   result.push(r*C.N+c);
   }
-  cancelSingle();lastClick={i,at:timestamp};
-  clickTimer=setTimeout(()=>{lastClick=null;mark(i);},300);
+  return result;
+ }
+ function cancelStroke(event){
+  if(!stroke||event.pointerId!==stroke.id)return;
+  stroke=null;
+  try{if(boardElement.hasPointerCapture(event.pointerId))boardElement.releasePointerCapture(event.pointerId);}catch(_){}
+ }
+ boardElement.addEventListener('pointerdown',event=>{
+  if(event.button!==0||!event.isPrimary||!canPlay())return;
+  const cell=event.target.closest('[data-i]');
+  if(!cell)return;
+  const index=Number(cell.dataset.i);
+  if(confirmed.has(index))return;
+  // A pending tap on another cell is a genuine single tap, not part of a double tap.
+  if(lastClick&&(lastClick.i!==index||Date.now()-lastClick.at>DOUBLE_TAP_MS))flushSingle();
+  soundEngine();
+  stroke={id:event.pointerId,start:index,last:index,x:event.clientX,y:event.clientY,dragging:false,
+   paintValue:marks[index]===2?0:2,seen:new Set()};
+  try{boardElement.setPointerCapture(event.pointerId);}catch(_){}
+  event.preventDefault();
  });
- $('board').addEventListener('dblclick',event=>{
+ boardElement.addEventListener('pointermove',event=>{
+  if(!stroke||event.pointerId!==stroke.id||!canPlay())return;
+  const index=tileAtPosition(event.clientX,event.clientY);
+  if(index<0)return;
+  const distance=Math.hypot(event.clientX-stroke.x,event.clientY-stroke.y);
+  if(!stroke.dragging){
+   if(index===stroke.start&&distance<9)return;
+   stroke.dragging=true;
+   // Starting a drag must never turn an earlier tap into a thief guess.
+   flushSingle();
+  }
+  const cells=crossedCells(stroke.last,index).filter(i=>!stroke.seen.has(i));
+  for(const i of cells)stroke.seen.add(i);
+  paint(cells,stroke.paintValue);
+  stroke.last=index;
+  event.preventDefault();
+ });
+ boardElement.addEventListener('pointerup',event=>{
+  if(!stroke||event.pointerId!==stroke.id)return;
+  const current=stroke;
+  // A very fast release can skip the final pointermove event.
+  if(current.dragging){
+   const finalIndex=tileAtPosition(event.clientX,event.clientY);
+   if(finalIndex>=0){
+    const cells=crossedCells(current.last,finalIndex).filter(i=>!current.seen.has(i));
+    paint(cells,current.paintValue);
+   }
+   cancelStroke(event);return;
+  }
+  cancelStroke(event);
+  if(!canPlay()||tileAtPosition(event.clientX,event.clientY)!==current.start)return;
+  const now=Date.now();
+  if(lastClick&&lastClick.i===current.start&&now-lastClick.at<=DOUBLE_TAP_MS){
+   cancelSingle();guess(current.start);return;
+  }
+  flushSingle();
+  lastClick={i:current.start,at:now};
+  clickTimer=setTimeout(()=>{
+   if(lastClick&&lastClick.i===current.start){lastClick=null;clickTimer=null;mark(current.start);}
+  },DOUBLE_TAP_MS);
+  event.preventDefault();
+ });
+ boardElement.addEventListener('pointercancel',event=>cancelStroke(event));
+ boardElement.addEventListener('lostpointercapture',event=>{
+  if(stroke&&stroke.id===event.pointerId)stroke=null;
+ });
+ boardElement.addEventListener('contextmenu',event=>{
+  const cell=event.target.closest('[data-i]');
+  if(!cell)return;
+  event.preventDefault();cancelSingle();soundEngine();mark(Number(cell.dataset.i));
+ });
+ boardElement.addEventListener('keydown',event=>{
   const cell=event.target.closest('[data-i]');if(!cell)return;
-  soundEngine();cancelSingle();guess(Number(cell.dataset.i));
- });
- $('board').addEventListener('contextmenu',event=>{
-  const cell=event.target.closest('[data-i]');if(cell){event.preventDefault();soundEngine();cancelSingle();mark(Number(cell.dataset.i));}
- });
- $('board').addEventListener('keydown',event=>{
-  const cell=event.target.closest('[data-i]');if(!cell)return;const i=Number(cell.dataset.i);
-  if(event.key==='x'||event.key==='X'){cancelSingle();mark(i);event.preventDefault();}
-  if(event.key==='g'||event.key==='G'){cancelSingle();guess(i);event.preventDefault();}
+  const i=Number(cell.dataset.i);
+  if(event.key==='x'||event.key==='X'||event.key==='Enter'||event.key===' '){
+   flushSingle();soundEngine();mark(i);event.preventDefault();
+  }else if(event.key==='g'||event.key==='G'){
+   cancelSingle();soundEngine();guess(i);event.preventDefault();
+  }
  });
  setInterval(()=>{if(startedAt&&phase==='playing')updateClock();},500);
  // Color-tiles transport disconnects idle guests after 60 seconds; keep long puzzle sessions alive.
