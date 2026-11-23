@@ -3,13 +3,53 @@
 (() => {
  const C=window.PhantomCore,$=id=>document.getElementById(id),PREFIX='vsphere-ct-v1-';
  const CODE=/^[A-HJ-NP-Z2-9]{8}$/;
- const palette=['#d7c4db','#f4d5bc','#d1e2d0','#c5d9ee','#efe0a9','#dec9bd','#c3d5d9','#ead0de','#d6d5ef','#dfdbb9','#c9d6c1'];
+ const palette=['#dec3f0','#f7d0ac','#bce9d1','#b9d7f5','#f9bdcb','#d7edaa','#ead0f4','#f6e79f','#a7dceb','#d7c9b3','#f3bca9'];
  const assets=['phantom-1.png','phantom-2.png','phantom-3.png','phantom-4.png'];
  let room=null,peer=null,connection=null,account=null,marks=Array(C.SIZE).fill(0);
  let misses=0,eliminated=false,pendingGuess=null,confirmed=new Set(),attempted=new Set();
  let lastClick=null,clickTimer=null,lastGuess=null;
  let boardData=null,phase='waiting',solo=false,startedAt=0,winner=null,round=0,roomCode='',isHost=false,busy=false,selection=0;
  const connections=new Map();
+ let soundEnabled=true,audioContext=null;
+ try{soundEnabled=localStorage.getItem('vsphere-phantom-sound')!=='off';}catch(_){}
+ function soundEngine(){
+  if(!soundEnabled)return null;
+  const AudioEngine=window.AudioContext||window.webkitAudioContext;
+  if(!AudioEngine)return null;
+  try{
+   if(!audioContext)audioContext=new AudioEngine();
+   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
+   return audioContext;
+  }catch(_){return null;}
+ }
+ function playSound(kind){
+  if(!soundEnabled)return;
+  const ctx=soundEngine();if(!ctx)return;
+  const notes=kind==='cross'?[[500,0,.035,'triangle',.035]]:
+   kind==='wrong'?[[330,0,.12,'sawtooth',.045],[220,.105,.15,'sawtooth',.040]]:
+   [[560,0,.08,'sine',.065],[720,.09,.10,'sine',.075],[980,.20,.16,'sine',.075]];
+  for(const [frequency,offset,duration,wave,volume] of notes){
+   try{
+    const o=ctx.createOscillator(),g=ctx.createGain(),start=ctx.currentTime+offset;
+    o.type=wave;o.frequency.setValueAtTime(frequency,start);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(volume,start+.008);
+    g.gain.exponentialRampToValueAtTime(.0001,start+duration);
+    o.connect(g);g.connect(ctx.destination);o.start(start);o.stop(start+duration+.012);
+   }catch(_){}
+  }
+ }
+ function showSoundSetting(){
+  $('soundBtn').textContent=soundEnabled?'🔊 효과음 켜짐':'🔇 효과음 꺼짐';
+  $('soundBtn').setAttribute('aria-pressed',String(soundEnabled));
+ }
+ $('soundBtn').onclick=()=>{
+  soundEnabled=!soundEnabled;
+  try{localStorage.setItem('vsphere-phantom-sound',soundEnabled?'on':'off');}catch(_){}
+  showSoundSetting();
+  if(soundEnabled)playSound('cross');
+ };
+ showSoundSetting();
  function say(s,error=false){$('status').textContent=s;$('status').classList.toggle('warning',error);}
  function name(){const s=$('nick').value.trim().replace(/[<>]/g,'').slice(0,20);if(!s){say('탐정 닉네임을 입력해주세요.',true);$('nick').focus();return null;}try{localStorage.setItem('vsphere-phantom-name',s);}catch(_){ }return s;}
  function randomCode(){const abc='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(8))].map(v=>abc[v%abc.length]).join('');}
@@ -20,19 +60,14 @@
  function renderBoard(){
   const host=$('board');host.replaceChildren();
   if(!boardData){for(let i=0;i<C.SIZE;i++){const tile=document.createElement('button');tile.type='button';tile.className='cell';tile.disabled=true;tile.style.setProperty('--tile-color',palette[(Math.floor(i/C.N)+Math.floor(i%C.N/2))%palette.length]);host.append(tile);}return;}
-  const clueSet=new Set(boardData.clues);
   for(let i=0;i<C.SIZE;i++){
    const reg=boardData.regions[i],r=Math.floor(i/C.N),c=i%C.N;
    const tile=document.createElement('button');tile.type='button';tile.className='cell';tile.dataset.i=String(i);
    tile.style.setProperty('--tile-color',palette[reg%palette.length]);
-   tile.style.borderTopWidth=(r===0||boardData.regions[i-C.N]!==reg)?'3px':'1px';
-   tile.style.borderBottomWidth=(r===C.N-1||boardData.regions[i+C.N]!==reg)?'3px':'1px';
-   tile.style.borderLeftWidth=(c===0||boardData.regions[i-1]!==reg)?'3px':'1px';
-   tile.style.borderRightWidth=(c===C.N-1||boardData.regions[i+1]!==reg)?'3px':'1px';
-   tile.disabled=!canPlay()||clueSet.has(i)||confirmed.has(i);
-   tile.setAttribute('aria-label',`${r+1}행 ${c+1}열 ${clueSet.has(i)?'배제 단서':marks[i]===1?'괴도 표시':marks[i]===2?'소거 표시':'빈 칸'}`);
-   if(clueSet.has(i)){tile.classList.add('clue');const x=document.createElement('span');x.className='cross';x.textContent='×';tile.append(x);}
-   else if(marks[i]===1){const img=document.createElement('img');img.alt='괴도 D';img.src=assets[(r+boardData.variantOffset)%assets.length];tile.append(img);}
+   tile.disabled=!canPlay()||confirmed.has(i);
+   tile.setAttribute('aria-label',`${r+1}행 ${c+1}열 ${marks[i]===1?'괴도 발견':marks[i]===2?'소거 표시':'빈 칸'}`);
+   tile.title=`${r+1}행 ${c+1}열`;
+   if(marks[i]===1){const img=document.createElement('img');img.alt='괴도 D';img.src=assets[(r+boardData.variantOffset)%assets.length];tile.append(img);}
    else if(marks[i]===2){const x=document.createElement('span');x.className='cross';x.textContent='×';tile.append(x);}
    host.append(tile);
   }
@@ -50,7 +85,7 @@
  function updateClock(){if(!startedAt)return;const seconds=Math.max(0,Math.floor((Date.now()-startedAt)/1000)),m=Math.floor(seconds/60),s=seconds%60;$('clock').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
  function mark(i){
   if(!canPlay()||boardData.clues.includes(i)||confirmed.has(i))return;
-  marks[i]=marks[i]===2?0:2;selection=i;updateBoard();
+  marks[i]=marks[i]===2?0:2;selection=i;playSound('cross');updateBoard();
  }
  function receiveGuess(msg){
   if(!msg||msg.round!==round||!Number.isInteger(msg.index))return;
@@ -59,6 +94,7 @@
   if(msg.correct){confirmed.add(msg.index);marks[msg.index]=1;}
   else marks[msg.index]=2;
   updateBoard();
+  playSound(msg.correct?'found':'wrong');
   if(eliminated){showResult('⛔ 게임 오버','틀린 위치를 세 번 지목했습니다. 이번 사건은 더 이상 수사할 수 없어요.');
    say('오답 3회! 이번 판은 게임 오버입니다. 다른 탐정의 결과를 기다려주세요.',true);
   }else if(msg.correct){
@@ -242,6 +278,7 @@
  function cancelSingle(){clearTimeout(clickTimer);clickTimer=null;lastClick=null;}
  $('board').addEventListener('click',event=>{
   const cell=event.target.closest('[data-i]');if(!cell)return;
+  soundEngine(); // Unlock mobile audio on the actual touch/click gesture.
   const i=Number(cell.dataset.i);
   if(event.detail===0){mark(i);return;}
   const timestamp=Date.now();
@@ -253,10 +290,10 @@
  });
  $('board').addEventListener('dblclick',event=>{
   const cell=event.target.closest('[data-i]');if(!cell)return;
-  cancelSingle();guess(Number(cell.dataset.i));
+  soundEngine();cancelSingle();guess(Number(cell.dataset.i));
  });
  $('board').addEventListener('contextmenu',event=>{
-  const cell=event.target.closest('[data-i]');if(cell){event.preventDefault();cancelSingle();mark(Number(cell.dataset.i));}
+  const cell=event.target.closest('[data-i]');if(cell){event.preventDefault();soundEngine();cancelSingle();mark(Number(cell.dataset.i));}
  });
  $('board').addEventListener('keydown',event=>{
   const cell=event.target.closest('[data-i]');if(!cell)return;const i=Number(cell.dataset.i);
