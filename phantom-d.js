@@ -339,7 +339,7 @@
   const cell=event.target.closest('[data-i]');
   if(!cell)return;
   const index=Number(cell.dataset.i);
-  if(confirmed.has(index))return;
+  if(confirmed.has(index)||attempted.has(index))return;
   // A pending tap on another cell is a genuine single tap, not part of a double tap.
   if(lastClick&&(lastClick.i!==index||Date.now()-lastClick.at>DOUBLE_TAP_MS))flushSingle();
   soundEngine();
