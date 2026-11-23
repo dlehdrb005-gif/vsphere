@@ -5,20 +5,37 @@ const N=11,SIZE=N*N,rand=n=>Math.floor(Math.random()*n);
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
 function makeSolution(){for(let k=0;k<2000;k++){const p=shuffle(Array.from({length:N},(_,i)=>i));if(p.every((c,r)=>!r||Math.abs(c-p[r-1])>1))return p;}throw Error('배치 생성 실패');}
 function makeRegions(solution){
- const regions=Array(SIZE).fill(-1),sizes=Array(N).fill(1),front=Array.from({length:N},()=>new Set());
- const around=i=>{const r=Math.floor(i/N),c=i%N,a=[];if(r)a.push(i-N);if(r<N-1)a.push(i+N);if(c)a.push(i-1);if(c<N-1)a.push(i+1);return a;};
- for(let r=0;r<N;r++)regions[r*N+solution[r]]=r;
- for(let r=0;r<N;r++)for(const q of around(r*N+solution[r]))if(regions[q]===-1)front[r].add(q);
- let remaining=SIZE-N;
- while(remaining){
-  const available=[];
-  for(let r=0;r<N;r++){for(const q of front[r])if(regions[q]!==-1)front[r].delete(q);if(front[r].size)available.push(r);}
-  if(!available.length)throw Error('구역 생성 실패');
-  const low=Math.min(...available.map(r=>sizes[r])),eligible=available.filter(r=>sizes[r]<=low+1);
-  const region=eligible[rand(eligible.length)],options=[...front[region]],cell=options[rand(options.length)];
-  regions[cell]=region;sizes[region]++;remaining--;
-  for(const q of around(cell))if(regions[q]===-1)front[region].add(q);
+ // A clean color map: one large connected territory, a handful of 1-cell
+ // territories, and several tiny connected ones. Each contains one suspect.
+ const seeds=solution.map((c,r)=>r*N+c);
+ const regions=Array(SIZE).fill(-1),sizes=Array(N).fill(1);
+ const dominant=rand(N),reserved=new Set(seeds);
+ const neighbors=i=>{
+  const r=Math.floor(i/N),c=i%N,out=[];
+  if(r>0)out.push(i-N);if(r<N-1)out.push(i+N);
+  if(c>0)out.push(i-1);if(c<N-1)out.push(i+1);
+  return out;
+ };
+ for(let g=0;g<N;g++)regions[seeds[g]]=g;
+ const groups=shuffle(Array.from({length:N},(_,i)=>i).filter(i=>i!==dominant));
+ const singles=3+rand(4),singleGroups=new Set(groups.slice(0,singles));
+ const target=Array.from({length:N},(_,i)=>singleGroups.has(i)?1:2+rand(6));
+ for(const g of groups){
+  while(sizes[g]<target[g]){
+   const frontier=[];
+   for(let i=0;i<SIZE;i++)if(regions[i]===g){
+    for(const j of neighbors(i))if(regions[j]===-1&&!reserved.has(j))frontier.push(j);
+   }
+   if(!frontier.length)break;
+   regions[frontier[rand(frontier.length)]]=g;sizes[g]++;
+  }
  }
+ for(let i=0;i<SIZE;i++)if(regions[i]===-1)regions[i]=dominant;
+ // Keep the dominant region physically connected for color-based deductions.
+ const seen=new Set([seeds[dominant]]),queue=[seeds[dominant]];
+ for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k]))
+  if(regions[j]===dominant&&!seen.has(j)){seen.add(j);queue.push(j);}
+ if(seen.size!==regions.filter(x=>x===dominant).length)return null;
  return regions;
 }
 function solutionCount(regions,clues=[],limit=2){
@@ -107,19 +124,19 @@ function logicalSolve(regions,clues=[]){
  return {solved:chosen.size===N,contradiction:false,operations};
 }
 function makePuzzle(){
- const solution=makeSolution(),regions=makeRegions(solution);
- const safe=new Set(solution.map((c,r)=>r*N+c));
- let clues=Array.from({length:SIZE},(_,i)=>i).filter(i=>!safe.has(i));
- const order=shuffle([...clues]),target=39+rand(6);
- // Start with an obvious puzzle and remove hints while a strict logic solver
- // can still finish without search/guessing. At least ~39-44 pre-crosses remain.
- for(const i of order){
-  if(clues.length<=target)break;
-  const trial=clues.filter(x=>x!==i);
-  if(logicalSolve(regions,trial).solved)clues=trial;
+ // No starting X clues. The full solution must be uniquely deducible from the
+ // region colors, row/column restrictions and grouping, without any guessing.
+ for(let attempt=0;attempt<700;attempt++){
+  const solution=makeSolution(),regions=makeRegions(solution);
+  if(!regions)continue;
+  const sizes=Array(N).fill(0);
+  for(const g of regions)sizes[g]++;
+  if(Math.max(...sizes)<70||sizes.filter(x=>x===1).length<3)continue;
+  if(!logicalSolve(regions,[]).solved)continue;
+  if(solutionCount(regions,[],2)!==1)continue;
+  return {solution,regions,clues:[],variantOffset:rand(4),difficulty:'easy-color-groups'};
  }
- if(!logicalSolve(regions,clues).solved)throw Error('논리 퍼즐 생성 실패');
- return {solution,regions,clues,variantOffset:rand(4),difficulty:'normal-and-group'};
+ throw Error('색 구역 문제 생성 실패');
 }
 function isSolved(cols,regions,clues=[]){
  if(!Array.isArray(cols)||cols.length!==N||!Array.isArray(regions)||regions.length!==SIZE)return false;
