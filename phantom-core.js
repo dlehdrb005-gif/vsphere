@@ -3,41 +3,6 @@
 'use strict';
 const N=11,SIZE=N*N,rand=n=>Math.floor(Math.random()*n);
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
-function makeSolution(){for(let k=0;k<2000;k++){const p=shuffle(Array.from({length:N},(_,i)=>i));if(p.every((c,r)=>!r||Math.abs(c-p[r-1])>1))return p;}throw Error('배치 생성 실패');}
-function makeRegions(solution){
- // A clean color map: one large connected territory, a handful of 1-cell
- // territories, and several tiny connected ones. Each contains one suspect.
- const seeds=solution.map((c,r)=>r*N+c);
- const regions=Array(SIZE).fill(-1),sizes=Array(N).fill(1);
- const dominant=rand(N),reserved=new Set(seeds);
- const neighbors=i=>{
-  const r=Math.floor(i/N),c=i%N,out=[];
-  if(r>0)out.push(i-N);if(r<N-1)out.push(i+N);
-  if(c>0)out.push(i-1);if(c<N-1)out.push(i+1);
-  return out;
- };
- for(let g=0;g<N;g++)regions[seeds[g]]=g;
- const groups=shuffle(Array.from({length:N},(_,i)=>i).filter(i=>i!==dominant));
- const singles=3+rand(4),singleGroups=new Set(groups.slice(0,singles));
- const target=Array.from({length:N},(_,i)=>singleGroups.has(i)?1:2+rand(6));
- for(const g of groups){
-  while(sizes[g]<target[g]){
-   const frontier=[];
-   for(let i=0;i<SIZE;i++)if(regions[i]===g){
-    for(const j of neighbors(i))if(regions[j]===-1&&!reserved.has(j))frontier.push(j);
-   }
-   if(!frontier.length)break;
-   regions[frontier[rand(frontier.length)]]=g;sizes[g]++;
-  }
- }
- for(let i=0;i<SIZE;i++)if(regions[i]===-1)regions[i]=dominant;
- // Keep the dominant region physically connected for color-based deductions.
- const seen=new Set([seeds[dominant]]),queue=[seeds[dominant]];
- for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k]))
-  if(regions[j]===dominant&&!seen.has(j)){seen.add(j);queue.push(j);}
- if(seen.size!==regions.filter(x=>x===dominant).length)return null;
- return regions;
-}
 function solutionCount(regions,clues=[],limit=2){
  const forbidden=new Set(clues);let count=0;
  function visit(row,usedCols,usedRegions,prev){
@@ -77,13 +42,22 @@ function logicalSolve(regions,clues=[]){
    if(!candidates.length)return {solved:false,contradiction:true,operations};
    if(candidates.length===1&&!chosen.has(candidates[0])){if(!place(candidates[0]))return {solved:false,contradiction:true,operations};changed=true;operations++;}
   }
-  if(chosen.size===N)return {solved:true,contradiction:false,operations};
+  if(chosen.size===N)return {solved:true,contradiction:false,operations,solution:([...chosen].sort((a,b)=>a-b).map(i=>i%N))};
   // Adjacent rows: an impossible neighbor pair is an ordinary deterministic exclusion.
   for(let r=0;r<N;r++)for(let c=0;c<N;c++){
    const i=r*N+c;if(!allowed[i])continue;
    for(const nr of [r-1,r+1])if(nr>=0&&nr<N){
     let viable=false;
     for(let nc=0;nc<N;nc++)if(Math.abs(nc-c)>1&&allowed[nr*N+nc]){viable=true;break;}
+    if(!viable){if(remove(i)){changed=true;operations++;}break;}
+   }
+  }
+  // Symmetric neighbor-column elimination for rotated puzzles.
+  for(let c=0;c<N;c++)for(let r=0;r<N;r++){
+   const i=r*N+c;if(!allowed[i])continue;
+   for(const nc of [c-1,c+1])if(nc>=0&&nc<N){
+    let viable=false;
+    for(let nr=0;nr<N;nr++)if(Math.abs(nr-r)>1&&allowed[nr*N+nc]){viable=true;break;}
     if(!viable){if(remove(i)){changed=true;operations++;}break;}
    }
   }
@@ -121,22 +95,67 @@ function logicalSolve(regions,clues=[]){
   }
   if(!changed)break;
  }
- return {solved:chosen.size===N,contradiction:false,operations};
+ return {solved:chosen.size===N,contradiction:false,operations,solution:chosen.size===N?([...chosen].sort((a,b)=>a-b).map(i=>i%N)):null};
+}
+
+const NEAR=Array.from({length:SIZE},(_,i)=>[i-N,i+N,i%N?i-1:-1,i%N<N-1?i+1:-1].filter(j=>j>=0&&j<SIZE));
+let lastBase=-1;
+function connectedColor(board,g,seed){
+ if(board[seed]!==g)return false;
+ const seen=new Set([seed]),q=[seed],count=board.filter(x=>x===g).length;
+ for(let p=0;p<q.length;p++)for(const j of NEAR[q[p]])if(board[j]===g&&!seen.has(j)){seen.add(j);q.push(j);}
+ return seen.size===count;
+}
+function validShape(board,answer){
+ if(!Array.isArray(board)||board.length!==SIZE||!Array.isArray(answer)||answer.length!==N)return false;
+ const counts=Array(N).fill(0),seeds=Array(N).fill(-1);
+ for(const g of board){if(!Number.isInteger(g)||g<0||g>=N)return false;counts[g]++;}
+ if(counts.filter(v=>v===1).length!==1||counts.filter(v=>v>=22&&v<=32).length!==1||counts.filter(v=>v>=8&&v<=13).length!==9)return false;
+ if(!isSolved(answer,board,[]))return false;
+ for(let r=0;r<N;r++)seeds[board[r*N+answer[r]]]=r*N+answer[r];
+ return seeds.every((seed,g)=>seed>=0&&connectedColor(board,g,seed));
+}
+function transformLayout(layout){
+ if(typeof layout!=='string'||!/^[0-9a]{121}$/.test(layout))throw Error('퍼즐 원본 형식 오류');
+ const mirror=rand(2),turns=rand(4),remap=shuffle(Array.from({length:N},(_,i)=>i));
+ const out=Array(SIZE);
+ for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+  let y=r,x=mirror?N-1-c:c;
+  for(let t=0;t<turns;t++){const old=y;y=x;x=N-1-old;}
+  out[y*N+x]=remap[parseInt(layout[r*N+c],36)];
+ }
+ return out;
+}
+function varyBorders(board,answer){
+ const queen=new Set(answer.map((c,r)=>r*N+c)),sizes=Array(N).fill(0);
+ for(const g of board)sizes[g]++;
+ const singleton=sizes.indexOf(1);
+ for(let step=0;step<1+rand(3);step++){
+  let moved=false;
+  for(let attempts=0;attempts<32;attempts++){
+   const i=rand(SIZE),from=board[i],neighbors=NEAR[i],to=board[neighbors[rand(neighbors.length)]];
+   if(queen.has(i)||from===singleton||to===singleton||from===to)continue;
+   const minimum=sizes[from]>=22?22:8,maximum=sizes[to]>=22?32:13;
+   if(sizes[from]<=minimum||sizes[to]>=maximum)continue;
+   board[i]=to;
+   if(!validShape(board,answer)||!logicalSolve(board,[]).solved){board[i]=from;continue;}
+   sizes[from]--;sizes[to]++;moved=true;break;
+  }
+  if(!moved)break;
+ }
 }
 function makePuzzle(){
- // No starting X clues. The full solution must be uniquely deducible from the
- // region colors, row/column restrictions and grouping, without any guessing.
- for(let attempt=0;attempt<700;attempt++){
-  const solution=makeSolution(),regions=makeRegions(solution);
-  if(!regions)continue;
-  const sizes=Array(N).fill(0);
-  for(const g of regions)sizes[g]++;
-  if(Math.max(...sizes)<70||sizes.filter(x=>x===1).length<3)continue;
-  if(!logicalSolve(regions,[]).solved)continue;
-  if(solutionCount(regions,[],2)!==1)continue;
-  return {solution,regions,clues:[],variantOffset:rand(4),difficulty:'easy-color-groups'};
- }
- throw Error('색 구역 문제 생성 실패');
+ const bank=root.PhantomPuzzleBank;
+ if(!Array.isArray(bank)||!bank.length)throw Error('검증된 퍼즐 원본 파일이 없습니다.');
+ let i=rand(bank.length);if(bank.length>1&&i===lastBase)i=(i+1+rand(bank.length-1))%bank.length;
+ lastBase=i;
+ const regions=transformLayout(bank[i]),deduced=logicalSolve(regions,[]);
+ if(!deduced.solved||!validShape(regions,deduced.solution))throw Error('원본 퍼즐 검사 실패');
+ const solution=deduced.solution;
+ varyBorders(regions,solution);
+ if(!validShape(regions,solution)||!logicalSolve(regions,[]).solved||solutionCount(regions,[],2)!==1)
+  throw Error('변형 퍼즐 검사 실패');
+ return {solution,regions,clues:[],variantOffset:rand(4),difficulty:'easy-normal'};
 }
 function isSolved(cols,regions,clues=[]){
  if(!Array.isArray(cols)||cols.length!==N||!Array.isArray(regions)||regions.length!==SIZE)return false;
