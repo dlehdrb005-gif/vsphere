@@ -72,7 +72,7 @@
  }
  function broadcast(){if(!room||!isHost)return;const message=state();for(const conn of connections.values())if(conn.open)conn.send(message);applyState(message);}
  function applyState(info){
-  const changed=round!==info.round||phase!==info.phase;
+  const changed=round!==info.round||(info.phase==='lobby'&&phase!=='lobby');
   room&&(room.phase=info.phase,room.round=info.round,room.startedAt=info.startedAt,room.winner=info.winner);
   if(changed)marks=Array(C.SIZE).fill(0);
   round=info.round;phase=info.phase;boardData=info.game;winner=info.winner;startedAt=info.startedAt;
@@ -200,6 +200,8 @@
   if(event.key==='x'||event.key==='X'){mark(i,2);event.preventDefault();}
  });
  setInterval(()=>{if(startedAt&&phase==='playing')updateClock();},500);
+ // Color-tiles transport disconnects idle guests after 60 seconds; keep long puzzle sessions alive.
+ setInterval(()=>{if(connection?.open&&room&&!isHost)connection.send({type:'ping'});},15000);
  try{$('nick').value=localStorage.getItem('vsphere-phantom-name')||'';}catch(_){}
  const invite=new URLSearchParams(location.search).get('room');
  if(invite&&CODE.test(invite.toUpperCase()))$('roomInput').value=invite.toUpperCase();
