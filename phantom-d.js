@@ -73,7 +73,7 @@
     const img=document.createElement('img');img.alt=marks[i]===1?'검거한 괴도 D':'정답: 괴도 D';img.src=assets[(r+boardData.variantOffset)%assets.length];tile.append(img);
    }else if(marks[i]===3){
     tile.classList.add('wrong-guess');
-    const x=document.createElement('span');x.className='cross wrong-cross';x.textContent='×';tile.append(x);
+    const x=document.createElement('span');x.className='cross wrong-cross';x.textContent='✕';tile.append(x);
    }else if(marks[i]===2){
     const x=document.createElement('span');x.className='cross';x.textContent='×';tile.append(x);
    }
@@ -305,11 +305,28 @@
  $('clearBtn').onclick=()=>{if(canPlay())resetMarks();};
  $('restartSolo').onclick=soloStart;
  const boardElement=$('board');
- const DOUBLE_TAP_MS=330;
+ const DOUBLE_TAP_MS=500; // More forgiving for mobile double taps.
  function cancelSingle(){clearTimeout(clickTimer);clickTimer=null;lastClick=null;}
- function flushSingle(){
-  if(!lastClick)return;
-  const index=lastClick.i;cancelSingle();mark(index);
+ // Apply normal X immediately. If a second tap follows, roll back the first
+ // tap before the server/solo answers the real (double-tap) thief guess.
+ function toggleTap(index){
+  if(!canPlay()||attempted.has(index)||confirmed.has(index))return;
+  const now=Date.now();
+  if(lastClick&&lastClick.i===index&&now-lastClick.at<=DOUBLE_TAP_MS){
+   const original=lastClick.before;
+   cancelSingle();
+   if(marks[index]!==original){marks[index]=original;updateBoard();}
+   guess(index);
+   return;
+  }
+  const before=marks[index];
+  cancelSingle();
+  mark(index);
+  lastClick={i:index,at:now,before};
+  clickTimer=setTimeout(()=>{
+   if(lastClick&&lastClick.i===index&&lastClick.at===now)lastClick=null;
+   clickTimer=null;
+  },DOUBLE_TAP_MS);
  }
  function tileAtPosition(x,y){
   const rect=boardElement.getBoundingClientRect();
@@ -340,8 +357,8 @@
   if(!cell)return;
   const index=Number(cell.dataset.i);
   if(confirmed.has(index)||attempted.has(index))return;
-  // A pending tap on another cell is a genuine single tap, not part of a double tap.
-  if(lastClick&&(lastClick.i!==index||Date.now()-lastClick.at>DOUBLE_TAP_MS))flushSingle();
+  // Another cell cancels the double-tap candidate; its X is already displayed.
+  if(lastClick&&(lastClick.i!==index||Date.now()-lastClick.at>DOUBLE_TAP_MS))cancelSingle();
   soundEngine();
   stroke={id:event.pointerId,start:index,last:index,x:event.clientX,y:event.clientY,dragging:false,
    paintValue:marks[index]===2?0:2,seen:new Set()};
@@ -354,10 +371,10 @@
   if(index<0)return;
   const distance=Math.hypot(event.clientX-stroke.x,event.clientY-stroke.y);
   if(!stroke.dragging){
-   if(index===stroke.start&&distance<9)return;
+   // Ignore finger jitter within one cell (common on mobile screens).
+   if(index===stroke.start||distance<13)return;
    stroke.dragging=true;
-   // Starting a drag must never turn an earlier tap into a thief guess.
-   flushSingle();
+   cancelSingle();
   }
   const cells=crossedCells(stroke.last,index).filter(i=>!stroke.seen.has(i));
   for(const i of cells)stroke.seen.add(i);
@@ -378,16 +395,12 @@
    cancelStroke(event);return;
   }
   cancelStroke(event);
-  if(!canPlay()||tileAtPosition(event.clientX,event.clientY)!==current.start)return;
-  const now=Date.now();
-  if(lastClick&&lastClick.i===current.start&&now-lastClick.at<=DOUBLE_TAP_MS){
-   cancelSingle();guess(current.start);return;
-  }
-  flushSingle();
-  lastClick={i:current.start,at:now};
-  clickTimer=setTimeout(()=>{
-   if(lastClick&&lastClick.i===current.start){lastClick=null;clickTimer=null;mark(current.start);}
-  },DOUBLE_TAP_MS);
+  if(!canPlay())return;
+  const releaseIndex=tileAtPosition(event.clientX,event.clientY);
+  const drift=Math.hypot(event.clientX-current.x,event.clientY-current.y);
+  // A slight release drift at tile borders must not discard a valid tap.
+  if(releaseIndex!==current.start&&drift>15)return;
+  toggleTap(current.start);
   event.preventDefault();
  });
  boardElement.addEventListener('pointercancel',event=>cancelStroke(event));
@@ -403,7 +416,7 @@
   const cell=event.target.closest('[data-i]');if(!cell)return;
   const i=Number(cell.dataset.i);
   if(event.key==='x'||event.key==='X'||event.key==='Enter'||event.key===' '){
-   flushSingle();soundEngine();mark(i);event.preventDefault();
+   cancelSingle();soundEngine();mark(i);event.preventDefault();
   }else if(event.key==='g'||event.key==='G'){
    cancelSingle();soundEngine();guess(i);event.preventDefault();
   }
