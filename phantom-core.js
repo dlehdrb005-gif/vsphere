@@ -19,7 +19,45 @@ function solutionCount(regions,clues=[],limit=2){
 // Deterministic deduction only: single-candidate, locked unit and 2-3-unit Hall sets.
 function logicalSolve(regions,clues=[],audit=false){
  const log=audit?[]:null;
- let reason='ordinary',reasonUnits=[],passIndex=0;
+ let reason='ordinary',reasonUnits=[],passIndex=0,groupingMask=0;
+ const excludedDepth=audit?new Int16Array(SIZE).fill(-1):null;
+ const placedDepth=audit?new Int16Array(SIZE).fill(-1):null;
+ const excludedGroupDepth=audit?new Int16Array(SIZE).fill(-1):null;
+ const placedGroupDepth=audit?new Int16Array(SIZE).fill(-1):null;
+ const proofEdges=audit?[]:null;
+ // Record the actual premises used in this deterministic proof.
+ function dependencyPremises(index){
+  if(!excludedDepth)return [];
+  if(reason==='placed')return [reasonUnits[0]];
+  if(reason==='locked'){
+   const [source,target]=reasonUnits;
+   return units[source].filter(i=>!allowed[i]&&!units[target].includes(i));
+  }
+  if(reason==='adjacent'){
+   const [a,b]=reasonUnits,source=units[a].includes(index)?b:a,rowMode=source<N;
+   return units[source].filter(j=>!allowed[j]&&(rowMode?
+    Math.abs((j%N)-(index%N))>1:
+    Math.abs(Math.floor(j/N)-Math.floor(index/N))>1));
+  }
+  if(reason==='pair'||reason==='triple'){
+   const [family,targetFamily,...groups]=reasonUnits,parents=[];
+   for(const id of groups)for(const j of units[family*N+id])if(!allowed[j]){
+    const dest=targetFamily===0?Math.floor(j/N):targetFamily===1?j%N:regions[j];
+    if(!(groupingMask&(1<<dest)))parents.push(j);
+   }
+   return [...new Set(parents)];
+  }
+  return [];
+ }
+ function dependencyProfile(parents){
+  let depth=-1,group=0;
+  for(const cell of parents){
+   const placed=placedDepth[cell]>=0;
+   depth=Math.max(depth,placed?placedDepth[cell]:excludedDepth[cell]);
+   group=Math.max(group,placed?placedGroupDepth[cell]:excludedGroupDepth[cell]);
+  }
+  return {depth:depth+1,group};
+ }
  function record(type,unitIds,cell,placed=false){
   if(!log)return;
   const signature=type+':'+unitIds.join(',');
@@ -32,6 +70,9 @@ function logicalSolve(regions,clues=[],audit=false){
  function finish(result){
   if(!log)return result;
   const trace=log.map(({signature,...step})=>step);
+  const maxDependencyDepth=Math.max(0,...proofEdges.map(e=>e.depth));
+  const maxGroupingChain=Math.max(0,...proofEdges.map(e=>e.groupDepth));
+  const independentDeductions=proofEdges.filter(e=>e.depth===0).length;
   const counts={single:0,ordinary:0,adjacent:0,locked:0,pair:0,triple:0};
   for(const step of trace)if(counts[step.type]!==undefined)counts[step.type]++;
   const firstTwo=trace.filter(e=>e.placed!==null).slice(0,2);
@@ -41,7 +82,8 @@ function logicalSolve(regions,clues=[],audit=false){
     counts.adjacent*3+counts.pair*3+counts.triple*5+
     Math.max(0,(firstConfirmationPass??10)-1)*4;
   return {...result,trace,metrics:{steps:trace.length,score,types:counts,
-   earlyEliminations:firstCrosses,firstConfirmationPass,placements:trace.filter(e=>e.placed!==null).length}};
+   earlyEliminations:firstCrosses,firstConfirmationPass,placements:trace.filter(e=>e.placed!==null).length,
+   maxDependencyDepth,maxGroupingChain,independentDeductions,proofEvents:proofEdges.length},proofGraph:proofEdges};
  }
 
  const allowed=new Uint8Array(SIZE).fill(1),chosen=new Set();
@@ -49,13 +91,30 @@ function logicalSolve(regions,clues=[],audit=false){
               ...Array.from({length:N},(_,c)=>Array.from({length:N},(_,r)=>r*N+c)),
               ...Array.from({length:N},(_,g)=>Array.from({length:SIZE},(_,i)=>i).filter(i=>regions[i]===g))];
  for(const i of clues)if(i>=0&&i<SIZE)allowed[i]=0;
- function remove(i){if(!allowed[i])return false;allowed[i]=0;record(reason,reasonUnits,i);return true;}
+ function remove(i){
+  if(!allowed[i])return false;
+  if(excludedDepth){
+   const parents=dependencyPremises(i),d=dependencyProfile(parents);
+   excludedDepth[i]=d.depth;
+   excludedGroupDepth[i]=d.group+(reason==='pair'||reason==='triple'?1:0);
+   proofEdges.push({kind:'exclude',technique:reason,index:i,
+    depth:d.depth,groupDepth:excludedGroupDepth[i],parents});
+  }
+  allowed[i]=0;record(reason,reasonUnits,i);return true;
+ }
  function place(i){
   if(!allowed[i])return false;
   for(const j of chosen){const r=Math.floor(i/N),c=i%N,rr=Math.floor(j/N),cc=j%N;
    if(r===rr||c===cc||regions[i]===regions[j]||(Math.abs(r-rr)<=1&&Math.abs(c-cc)<=1))return false;
   }
-  chosen.add(i);record('single',reasonUnits,i,true);const r=Math.floor(i/N),c=i%N;
+  if(placedDepth){
+   const unit=units[reasonUnits[0]],parents=unit.filter(j=>j!==i&&!allowed[j]);
+   const d=dependencyProfile(parents);
+   placedDepth[i]=d.depth;placedGroupDepth[i]=d.group;
+   proofEdges.push({kind:'place',technique:'single',index:i,depth:d.depth,groupDepth:d.group,parents});
+  }
+  chosen.add(i);record('single',reasonUnits,i,true);
+  reason='placed';reasonUnits=[i];const r=Math.floor(i/N),c=i%N;
   for(let j=0;j<SIZE;j++)if(j!==i&&(Math.floor(j/N)===r||j%N===c||regions[j]===regions[i]||
     (Math.abs(Math.floor(j/N)-r)<=1&&Math.abs(j%N-c)<=1)))remove(j);
   return true;
@@ -132,7 +191,7 @@ function logicalSolve(regions,clues=[],audit=false){
     function eliminate(group,mask){
      if(mask.toString(2).replace(/0/g,'').length!==groupSize)return false;
      let made=false;
-     reason=groupSize===2?'pair':'triple';reasonUnits=[sourceFamily,targetFamily,...group];
+     reason=groupSize===2?'pair':'triple';reasonUnits=[sourceFamily,targetFamily,...group];groupingMask=mask;
      for(let i=0;i<SIZE;i++)if(allowed[i]){
       const source=sourceFamily===0?Math.floor(i/N):sourceFamily===1?i%N:regions[i];
       const target=targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i];
@@ -153,7 +212,7 @@ function logicalSolve(regions,clues=[],audit=false){
 }
 
 const NEAR=Array.from({length:SIZE},(_,i)=>[i-N,i+N,i%N?i-1:-1,i%N<N-1?i+1:-1].filter(j=>j>=0&&j<SIZE));
-let lastBase=-1;
+let lastBase=-1,singletonQuota=[];
 function connectedColor(board,g,seed){
  if(board[seed]!==g)return false;
  const seen=new Set([seed]),q=[seed],count=board.filter(x=>x===g).length;
@@ -164,7 +223,9 @@ function validShape(board,answer){
  if(!Array.isArray(board)||board.length!==SIZE||!Array.isArray(answer)||answer.length!==N)return false;
  const counts=Array(N).fill(0),seeds=Array(N).fill(-1);
  for(const g of board){if(!Number.isInteger(g)||g<0||g>=N)return false;counts[g]++;}
- if(counts.filter(v=>v===0).length||counts.filter(v=>v===1).length!==1)return false;
+ if(counts.some(v=>v===0))return false;
+ const singletonCount=counts.filter(v=>v===1).length;
+ if((N===9&&singletonCount!==1)||(N===10&&singletonCount>1)||(N===11&&singletonCount!==0))return false;
  if(root.PhantomBeginnerBanks?.[N]?.length){
   if(counts.some(v=>v!==1&&v<2)||Math.max(...counts)>Math.ceil(SIZE*.42))return false;
  }else{
@@ -210,18 +271,36 @@ function varyBorders(board,answer){
  }
 }
 function makePuzzle(){
- const beginner=root.PhantomBeginnerBanks?.[N];
- const bank=Array.isArray(beginner)&&beginner.length?beginner:(N===11?root.PhantomPuzzleBank:root.PhantomSizeBanks?.[N]);
- if(!Array.isArray(bank)||!bank.length)throw Error('검증된 퍼즐 원본 파일이 없습니다.');
- let i=rand(bank.length);if(bank.length>1&&i===lastBase)i=(i+1+rand(bank.length-1))%bank.length;
- lastBase=i;
- const regions=transformLayout(bank[i]),deduced=logicalSolve(regions,[]);
- if(!deduced.solved||!validShape(regions,deduced.solution))throw Error('원본 퍼즐 검사 실패');
- const solution=deduced.solution;
- if(!beginner?.length&&N===11)varyBorders(regions,solution);
- if(!validShape(regions,solution)||!logicalSolve(regions,[]).solved||solutionCount(regions,[],2)!==1)
-  throw Error('변형 퍼즐 검사 실패');
- return {size:N,solution,regions,clues:[],variantOffset:rand(4),difficulty:N===9?'easy':N===10?'normal':'advanced'};
+ let withSingleton=N===9;
+ if(N===10){
+  // Exactly one singleton-bearing puzzle per shuffled block of four rounds.
+  if(!singletonQuota.length)singletonQuota=shuffle([1,0,0,0]);
+  withSingleton=singletonQuota.pop()===1;
+ }
+ const bank=N===9?root.PhantomBeginnerBanks?.[9]:
+  N===10?(withSingleton?root.PhantomMidSingletonBanks:root.PhantomNoSingletonBanks?.[10]):
+  root.PhantomNoSingletonBanks?.[11];
+ if(!Array.isArray(bank)||!bank.length)throw Error('검증된 난이도별 퍼즐 데이터가 없습니다.');
+ for(let attempt=0;attempt<32;attempt++){
+  let i=rand(bank.length);
+  if(bank.length>1&&i===lastBase)i=(i+1+rand(bank.length-1))%bank.length;
+  const regions=transformLayout(bank[i]),deduced=logicalSolve(regions,[]);
+  if(!deduced.solved||!validShape(regions,deduced.solution))continue;
+  const solution=deduced.solution;
+  if(N>=10){
+   const metrics=analyzePuzzle(regions,[]).metrics;
+   if(metrics.singletonCount!==(withSingleton?1:0)||
+     metrics.independentStarts<2||metrics.patterns.straight<1||metrics.patterns.pair<1||
+     (!withSingleton&&metrics.firstConfirmationPass===0)||
+     metrics.maxDependencyDepth>(N===10?16:20)||
+     metrics.maxGroupingChain>(N===10?2:3))continue;
+  }
+  if(solutionCount(regions,[],2)!==1)continue;
+  lastBase=i;
+  return {size:N,solution,regions,clues:[],variantOffset:rand(4),
+   difficulty:N===9?'easy':N===10?'normal':'advanced'};
+ }
+ throw Error('난이도 검증을 통과하는 퍼즐을 생성하지 못했습니다.');
 }
 function isSolved(cols,regions,clues=[]){
  if(!Array.isArray(cols)||cols.length!==N||!Array.isArray(regions)||regions.length!==SIZE)return false;
@@ -281,6 +360,19 @@ function analyzePuzzle(regions,clues=[]){
    regions[i]===singleton||(Math.abs(Math.floor(i/N)-r)<=1&&Math.abs(i%N-c)<=1)))initial.add(i);
  }
  for(const pattern of [...straight,...pair])for(const i of pattern.eliminated)initial.add(i);
+ const entries=[...straight.map(p=>({colors:[p.color],eliminated:p.eliminated})),
+  ...pair.map(p=>({colors:p.colors,eliminated:p.eliminated}))];
+ let independentStarts=0;
+ function findIndependent(start,colors,number){
+  independentStarts=Math.max(independentStarts,number);
+  for(let k=start;k<entries.length;k++){
+   const item=entries[k];
+   if(item.colors.some(c=>colors.has(c)))continue;
+   const next=new Set(colors);for(const c of item.colors)next.add(c);
+   findIndependent(k+1,next,number+1);
+  }
+ }
+ findIndependent(0,new Set(),0);
  const familyNames=['row','column','color'];
  const trace=(proof.trace||[]).map(step=>{
   const [a,b,...unitIds]=step.units;
@@ -290,7 +382,7 @@ function analyzePuzzle(regions,clues=[]){
   return {...step,sources};
  });
  const metrics={...(proof.metrics||{}),patterns:{straight:straight.length,pair:pair.length,triple:triple.length},
-  initialAvailable:initial.size,singletonCount:sizes.filter(v=>v===1).length,
+  initialAvailable:initial.size,independentStarts,singletonCount:sizes.filter(v=>v===1).length,
   maxGroupingSize:(proof.metrics?.types?.triple||0)>0?3:(proof.metrics?.types?.pair||0)>0?2:1,
   stepCount:trace.length};
  return {...proof,trace,metrics,patterns:{straight,pair,triple}};
