@@ -46,6 +46,7 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 .clear-overlay{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(8,7,22,.83);backdrop-filter:blur(7px)}
 .clear-card{position:relative;width:min(430px,94vw);max-height:calc(100dvh - 24px);border-radius:20px;padding:12px;background:linear-gradient(145deg,#4e2b75,#171128);border:2px solid #d3a75b;box-shadow:0 14px 80px #000b,0 0 35px #ae77f044;display:flex;flex-direction:column;align-items:center;gap:10px;overflow:hidden}
 .clear-art{display:block;width:auto;max-width:100%;max-height:calc(100dvh - 112px);object-fit:contain;aspect-ratio:561/701;border-radius:12px;image-rendering:auto}
+.clear-success-text{font-family:Georgia,serif;font-size:clamp(20px,4vw,28px);font-weight:900;letter-spacing:.13em;text-shadow:0 3px 14px #000b;color:#ffde88;flex:none}
 .clear-close{position:absolute;z-index:1;right:18px;top:18px;width:42px;height:42px;border:2px solid #ffdf8c;border-radius:50%;background:#171127d9;color:white;font-size:25px;display:grid;place-items:center;box-shadow:0 3px 15px #0008}
 .clear-dismiss{width:100%;min-height:42px;border-radius:11px;border:1px solid #d5b170;background:#33234c;color:#ffedbf;font-weight:800}
 .clear-overlay.is-visible .clear-card{animation:clear-pop .58s cubic-bezier(.18,1.38,.35,1) both}
@@ -62,7 +63,7 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <script src="phantom-beginner-bank.js?v=20261124-easylogic2" defer></script>
 <script src="phantom-no-single-bank.js?v=20261124-balanced4" defer></script>
 <script src="phantom-core.js?v=20261124-balanced4" defer></script>
-<script src="phantom-d.js?v=20261124-clear4" defer></script>
+<script src="phantom-d.js?v=20261124-hqfix1" defer></script>
 </head>
 <body>
 <header><a href="/">← VSPHERE</a><span>MINIGAME · DETECTIVE CASE 001</span></header>
@@ -109,8 +110,9 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 </main><footer>VSPHERE · 괴도 D를 찾아라</footer>
 <div id="clearOverlay" class="clear-overlay" role="dialog" aria-modal="true" aria-label="괴도 D 검거 완료 CLEAR" hidden>
   <div class="clear-card">
+   <div class="clear-success-text" aria-hidden="true">CLEAR!</div>
    <button id="clearClose" class="clear-close" type="button" aria-label="클리어 화면 닫기">×</button>
-   <img class="clear-art" src="phantom-clear-hq.avif?v=20261124-hq1" width="1122" height="1402" alt="CLEAR! 수갑을 찬 죄수복 차림의 괴도 D" decoding="async">
+   <img id="clearImage" class="clear-art" src="phantom-clear-hq.webp?v=20261124-hqfix1" width="1122" height="1402" alt="CLEAR! 수갑을 찬 죄수복 차림의 괴도 D" decoding="async" loading="eager" fetchpriority="high" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='phantom-clear-hq.avif?v=20261124-hqfix1';}">
    <button class="clear-dismiss" type="button" onclick="document.getElementById('clearClose').click()">결과 확인 · 닫기</button>
   </div>
  </div>
