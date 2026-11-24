@@ -159,7 +159,6 @@ function validShape(board,answer){
  if(!Array.isArray(board)||board.length!==SIZE||!Array.isArray(answer)||answer.length!==N)return false;
  const counts=Array(N).fill(0),seeds=Array(N).fill(-1);
  for(const g of board){if(!Number.isInteger(g)||g<0||g>=N)return false;counts[g]++;}
- if(counts.filter(v=>v===1).length!==1)return false;
  if(counts.filter(v=>v===0).length||counts.filter(v=>v===1).length!==1)return false;
  if(root.PhantomBeginnerBanks?.[N]?.length){
   if(counts.some(v=>v!==1&&v<2)||Math.max(...counts)>Math.ceil(SIZE*.42))return false;
@@ -258,9 +257,38 @@ function analyzePuzzle(regions,clues=[]){
    if(cells.length)pair.push({colors:[a,b],axis:axis===0?'rows':'columns',
     units:Array.from({length:N},(_,u)=>u).filter(u=>mask&(1<<u)),eliminated:cells});
   }
+ for(let a=0;a<N;a++)for(let b=a+1;b<N;b++)for(let c=b+1;c<N;c++)
+  if(a!==singleton&&b!==singleton&&c!==singleton)
+   for(let axis=0;axis<2;axis++){
+    const mask=masks[a][axis]|masks[b][axis]|masks[c][axis];
+    if(popcount(mask)!==3)continue;
+    const cells=[];
+    for(let i=0;i<SIZE;i++)if(regions[i]!==a&&regions[i]!==b&&regions[i]!==c&&
+     (mask&(1<<(axis===0?Math.floor(i/N):i%N))))cells.push(i);
+    if(cells.length)triple.push({colors:[a,b,c],axis:axis===0?'rows':'columns',
+     units:Array.from({length:N},(_,u)=>u).filter(u=>mask&(1<<u)),eliminated:cells});
+   }
+ // Union of immediate, unconditional eliminations; no guesses or hidden answers.
+ const initial=new Set();
+ if(singleton>=0){
+  const certain=regions.indexOf(singleton),r=Math.floor(certain/N),c=certain%N;
+  for(let i=0;i<SIZE;i++)if(i!==certain&&(Math.floor(i/N)===r||i%N===c||
+   regions[i]===singleton||(Math.abs(Math.floor(i/N)-r)<=1&&Math.abs(i%N-c)<=1)))initial.add(i);
+ }
+ for(const pattern of [...straight,...pair])for(const i of pattern.eliminated)initial.add(i);
+ const familyNames=['row','column','color'];
+ const trace=(proof.trace||[]).map(step=>{
+  const [a,b,...unitIds]=step.units;
+  const sources=(step.type==='pair'||step.type==='triple')
+   ?{fromFamily:familyNames[a],toFamily:familyNames[b],group:unitIds}
+   :step.units.map(unit=>({family:familyNames[Math.floor(unit/N)],index:unit%N}));
+  return {...step,sources};
+ });
  const metrics={...(proof.metrics||{}),patterns:{straight:straight.length,pair:pair.length,triple:triple.length},
-  initialAvailable:straight.reduce((a,x)=>a+x.eliminated.length,0),singletonCount:sizes.filter(v=>v===1).length};
- return {...proof,metrics,patterns:{straight,pair,triple}};
+  initialAvailable:initial.size,singletonCount:sizes.filter(v=>v===1).length,
+  maxGroupingSize:(proof.metrics?.types?.triple||0)>0?3:(proof.metrics?.types?.pair||0)>0?2:1,
+  stepCount:trace.length};
+ return {...proof,trace,metrics,patterns:{straight,pair,triple}};
 }
 return {N,SIZE,makePuzzle,isSolved,solutionCount,logicalSolve,analyzePuzzle};
 }
