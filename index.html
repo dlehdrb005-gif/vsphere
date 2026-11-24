@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101626"><title>VSPHERE</title><meta property="og:title" content="VSPHERE"><meta property="og:site_name" content="VSPHERE"><meta property="og:type" content="website"><meta property="og:url" content="https://vsphereworld.com/"><meta name="description" content="함께 이야기하고 미니게임과 음악을 즐기는 공간, VSPHERE."><meta property="og:description" content="함께 이야기하고 미니게임과 음악을 즐기는 공간, VSPHERE."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="VSPHERE"><link rel="stylesheet" href="styles.css?v=20261002-comments1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101626"><title>VSPHERE</title><meta property="og:title" content="VSPHERE"><meta property="og:site_name" content="VSPHERE"><meta property="og:type" content="website"><meta property="og:url" content="https://vsphereworld.com/"><meta name="description" content="함께 이야기하고 미니게임과 음악을 즐기는 공간, VSPHERE."><meta property="og:description" content="함께 이야기하고 미니게임과 음악을 즐기는 공간, VSPHERE."><meta name="twitter:card" content="summary"><meta name="twitter:title" content="VSPHERE"><link rel="stylesheet" href="styles.css?v=20261016-editor2"></head>
 <body>
 <header class="site-header">
   <button id="menuButton" class="menu-button" type="button" aria-label="메뉴 열기" aria-controls="sidebar" aria-expanded="false">☰</button>
@@ -20,7 +20,22 @@
 <footer style="text-align:center;padding:24px;line-height:1.9"><a href="contact.html" style="color:#8bddeb">운영자 문의 · 권리 침해 신고 · 개인정보·탈퇴 요청</a></footer>
 <footer>VSPHERE <span>·</span> 콘텐츠 허브</footer>
 <dialog id="authDialog" class="dialog"><form id="authForm" class="dialog-card"><div class="dialog-head"><h2 id="authTitle">로그인</h2><button class="close-button" type="button" data-close aria-label="닫기">×</button></div><p id="authDescription" class="dialog-description">계정으로 로그인하세요.</p><label id="nicknameField" class="hidden">닉네임<input id="nickname" type="text" maxlength="20" autocomplete="nickname" placeholder="게시판에 표시할 이름"></label><label>이메일<input id="email" type="email" autocomplete="email" required placeholder="you@example.com"></label><label>비밀번호<input id="password" type="password" minlength="6" autocomplete="current-password" required placeholder="6자 이상"></label><p id="authError" class="form-error" role="alert"></p><button id="authSubmit" class="accent-button full-button" type="submit">로그인</button><button id="authSwitch" class="text-button" type="button">처음 오셨나요? 회원가입</button><button id="googleLogin" class="text-button" type="button">Google 계정으로 로그인</button></form></dialog>
-<dialog id="postDialog" class="dialog"><form id="postForm" class="dialog-card"><div class="dialog-head"><h2 id="postTitle">글 남기기</h2><button class="close-button" type="button" data-close aria-label="닫기">×</button></div><label>제목<input id="entryTitle" type="text" maxlength="80" required placeholder="제목을 입력하세요"></label><label>내용<textarea id="entryBody" rows="7" maxlength="3000" required placeholder="내용을 입력하세요"></textarea></label><p id="postError" class="form-error" role="alert"></p><button id="postSubmit" class="accent-button full-button" type="submit">등록하기</button></form></dialog>
+<dialog id="postDialog" class="dialog composer-dialog" aria-labelledby="postTitle"><form id="postForm" class="dialog-card">
+<div class="dialog-head"><h2 id="postTitle">글쓰기</h2><button class="close-button" type="button" data-close aria-label="닫기">×</button></div>
+<label>제목<input id="entryTitle" type="text" maxlength="80" required placeholder="제목을 입력하세요"></label>
+<div class="editor-toolbar" role="toolbar" aria-label="본문 편집 도구">
+<button type="button" data-command="bold"><b>굵게</b></button><button type="button" data-command="italic"><i>기울임</i></button><button type="button" data-command="underline"><u>밑줄</u></button>
+<button type="button" data-command="formatBlock" data-value="h2">소제목</button><button type="button" data-command="formatBlock" data-value="p">본문</button><button type="button" data-command="insertUnorderedList">목록</button>
+<button type="button" id="editorLink">링크</button><button type="button" id="editorYoutube">유튜브</button>
+<button type="button" id="editorPreview">미리보기</button></div>
+
+<div id="entryBody" class="rich-body editor-input" contenteditable="true" role="textbox" aria-label="게시글 내용" aria-multiline="true" data-placeholder="내용을 입력하세요. 서식을 꾸미고 유튜브 영상을 넣을 수 있어요."></div>
+<div id="editorPreviewBody" class="rich-body editor-preview" hidden aria-label="본문 미리보기"></div>
+<div class="editor-help"><span id="editorCount">0 / 50,000자</span><span>유튜브 영상 최대 20개</span></div>
+<p class="profile-help">유튜브 버튼으로 영상 주소를 넣어 주세요. 파일 업로드는 지원하지 않습니다.</p>
+<p id="editorStatus" role="status" aria-live="polite"></p><p id="postError" class="form-error" role="alert"></p>
+<button id="postSubmit" class="accent-button full-button" type="submit">등록하기</button>
+</form></dialog>
 <dialog id="profileDialog" class="dialog" aria-labelledby="profileTitle"><form id="profileForm" class="dialog-card">
 <div class="dialog-head"><h2 id="profileTitle">마이페이지</h2><button class="close-button" type="button" data-close aria-label="닫기">×</button></div>
 <p class="dialog-description">내 닉네임과 프로필 사진을 변경하세요.</p>
@@ -33,5 +48,6 @@
 <p id="profileError" class="form-error" role="alert"></p><p id="profileStatus" class="profile-status" role="status" aria-live="polite"></p>
 <button id="profileSave" class="accent-button full-button" type="submit">변경사항 저장</button>
 </form></dialog>
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script><script src="firebase-config.js"></script><script src="comments.js?v=20261002-comments1"></script><script src="script.js?v=20261005-safety1"></script>
+<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script><script src="firebase-config.js"></script><script src="comments.js?v=20261002-comments1"></script><script src="board-editor.js?v=20261016-editor2"></script><script src="script.js?v=20261016-editor2"></script>
 </body></html>
+

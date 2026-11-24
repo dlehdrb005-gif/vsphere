@@ -111,8 +111,8 @@ function renderEntries(target, snapshot, kind) {
     const article = document.createElement('details'); article.className = 'entry'; article.dataset.postId = doc.id;
     const summary = document.createElement('summary'); summary.className = 'entry-summary';
     const title = document.createElement('h3'); title.textContent = data.title;
-    const body = document.createElement('p'); body.textContent = data.body;
-    body.className = 'entry-body';
+    const body = document.createElement('div'); BoardEditor.render(body, data.body);
+    body.className = 'entry-body rich-body';
     const meta = document.createElement('div'); meta.className = 'entry-meta';
     const author = document.createElement('span'); author.textContent = kind === 'notices' ? 'VSPHERE 운영자' : data.authorName;
     const date = document.createElement('time'); date.textContent = formatDate(data.createdAt);
@@ -151,10 +151,11 @@ function openPost(kind, entry = null) {
   if (entry && entry.authorUid !== currentUser.uid) return;
   if (kind === 'notices' && !isAdmin()) return;
   postType = kind; editingPost = entry;
-  $('#postForm').reset(); $('#postError').textContent = '';
+  $('#postForm').reset(); $('#entryTitle').value = ''; $('#postError').textContent = '';
   $('#postTitle').textContent = entry ? (kind === 'notices' ? '공지 수정' : '글 수정') : (kind === 'notices' ? '공지 쓰기' : '글 남기기');
   $('#postSubmit').textContent = entry ? '수정 저장' : '등록하기';
-  if (entry) { $('#entryTitle').value = entry.title; $('#entryBody').value = entry.body; }
+  if (entry) { $('#entryTitle').value = entry.title;  }
+  BoardEditor.reset(entry?.body || '');
   $('#postDialog').showModal(); $('#entryTitle').focus();
 }
 $('#writeNotice').addEventListener('click', () => openPost('notices'));
@@ -162,10 +163,13 @@ $('#writeMessage').addEventListener('click', () => openPost('messages'));
 $('#postForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!db || !currentUser) { $('#postError').textContent = '게시판이 아직 준비되지 않았습니다.'; return; }
-  const button = $('#postSubmit'); button.disabled = true; $('#postError').textContent = '';
+  if (BoardEditor.busy()) return;
+  const button = $('#postSubmit'); BoardEditor.lock(true); $('#postError').textContent = '';
+  const submittingUid = currentUser.uid;
   try {
-    const title = $('#entryTitle').value.trim(), body = $('#entryBody').value.trim();
+    const title = $('#entryTitle').value.trim(), body = BoardEditor.serialize();
     if (!title || !body) throw new Error('제목과 내용을 입력해 주세요.');
+    if (auth.currentUser?.uid !== submittingUid) throw new Error('로그인 상태가 바뀌었습니다. 다시 로그인해 주세요.');
     if (editingPost) {
       if (editingPost.authorUid !== currentUser.uid) throw new Error('본인이 쓴 글만 수정할 수 있습니다.');
       await db.collection(postType).doc(editingPost.id).update({ title, body });
@@ -173,9 +177,10 @@ $('#postForm').addEventListener('submit', async (event) => {
       title, body, authorUid: currentUser.uid, authorName: displayName(currentUser),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    BoardEditor.saved();
     $('#postDialog').close();
   } catch (error) { $('#postError').textContent = error.code ? friendlyError(error) : error.message; }
-  finally { button.disabled = false; }
+  finally { BoardEditor.lock(false); }
 });
 
 if (ready) {
@@ -338,3 +343,4 @@ $('#profileForm').addEventListener('submit', async event => {
     $('#profileError').textContent = errors.join(' ');
   } finally { lockProfile(false); }
 });
+
