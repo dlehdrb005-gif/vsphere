@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#151326"><meta name="description" content="탐정이 되어 괴도 D의 흔적을 추적하세요. 11×11 랜덤 논리 퍼즐, 친구와 먼저 해결하기!">
+<meta name="theme-color" content="#151326"><meta name="description" content="탐정이 되어 괴도 D의 흔적을 추적하세요. 9×9·10×10·11×11 랜덤 논리 퍼즐, 친구와 먼저 해결하기!">
 <title>괴도 D를 찾아라 | VSPHERE 미니게임</title>
 <style>
 :root{color-scheme:dark;font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif;--bg:#0b0e1c;--panel:#171c31;--muted:#aeb7cc;--line:#333a59;--gold:#f5d998;--text:#f7f5fa}
@@ -11,14 +11,19 @@
 main{max-width:1080px;padding:24px 16px 64px;margin:0 auto}
 .hero{text-align:center;padding:28px 8px}.eyebrow{font-size:12px;letter-spacing:2px;color:#e8a6f6;font-weight:850}.hero h1{margin:7px 0;font-size:clamp(30px,6vw,53px);letter-spacing:-1.6px}.hero h1 span{color:var(--gold)}.hero p{color:var(--muted);margin:6px auto 0;line-height:1.6}
 .panel{background:#171c31ee;border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:18px;box-shadow:0 12px 32px #0003}
-.panel h2{font-size:18px;margin:0 0 14px}.fields{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.fields label{display:grid;gap:6px;flex:1;min-width:150px;font-size:13px;color:var(--muted)}input{width:100%;background:#0b1021;color:#fff;padding:11px 12px;border:1px solid #55546d;border-radius:9px;min-height:44px}
+.panel h2{font-size:18px;margin:0 0 14px}
+.size-picker{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 18px}
+.size-picker label{font-size:14px;color:#e4deee;font-weight:750}
+.size-picker select{min-height:44px;background:#11172a;color:#fff;border:1px solid #76648e;border-radius:10px;padding:9px 14px;flex:1;max-width:300px}
+.size-picker select:disabled{opacity:.65;cursor:not-allowed}
+.fields{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.fields label{display:grid;gap:6px;flex:1;min-width:150px;font-size:13px;color:var(--muted)}input{width:100%;background:#0b1021;color:#fff;padding:11px 12px;border:1px solid #55546d;border-radius:9px;min-height:44px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.actions button,.game-actions button{border:1px solid #5d5873;border-radius:10px;background:#282f48;padding:10px 14px;min-height:43px;font-weight:750}.actions button.primary,.game-actions button.primary{background:#7550a5;border-color:#a878d6}.actions button:hover,.game-actions button:hover{border-color:#edc87b}.actions button:disabled,.game-actions button:disabled{opacity:.45;cursor:not-allowed}
 .note{color:var(--muted);line-height:1.5;font-size:13px;margin:12px 0 0}#status{min-height:22px;color:#e7d7ff}.warning{color:#ffc6ca!important}
 .room-head{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.code{background:#101020;border:1px dashed #9377b9;border-radius:8px;padding:5px 9px;font-weight:800;color:#f6d896;letter-spacing:2px}
 .players{display:flex;flex-wrap:wrap;gap:8px}.player{font-size:13px;background:#282f48;border-radius:8px;padding:7px 10px;border:1px solid #525a77}.player.ready{border-color:#92c7a2}.player.winner{background:#624a26;border-color:#edcb78}
 .play{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,270px);gap:18px;align-items:start}
 .board-panel{min-width:0}.board-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.phase{color:var(--gold);font-weight:800}.stat{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
-.board{--tile:calc(100% / 11);width:min(100%,590px);margin:0 auto;display:grid;grid-template-columns:repeat(11,minmax(0,1fr));aspect-ratio:1;gap:2px;padding:2px;border:0;border-radius:8px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;background:#434050}
+.board{--tile:calc(100% / 11);width:min(100%,590px);margin:0 auto;display:grid;grid-template-columns:repeat(var(--grid-count,11),minmax(0,1fr));aspect-ratio:1;gap:2px;padding:2px;border:0;border-radius:8px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;background:#434050}
 .cell{position:relative;min-width:0;min-height:0;padding:0;touch-action:none;border:0;border-radius:0;background:var(--tile-color);display:flex;justify-content:center;align-items:center;color:#4d4255;aspect-ratio:1}
 .cell:hover:not(:disabled){box-shadow:inset 0 0 0 2px #ffffff77;z-index:1}
 .cell:active:not(:disabled){filter:brightness(.9)}
@@ -44,15 +49,22 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <script src="firebase-config.js" defer></script>
 <script src="color-tiles-firebase.js" defer></script>
 <script src="phantom-bank.js?v=20261123-balanced3" defer></script>
-<script src="phantom-core.js?v=20261123-balanced3" defer></script>
-<script src="phantom-d.js?v=20261123-mobilefix6" defer></script>
+<script src="phantom-size-bank.js?v=20261124-sizes1" defer></script>
+<script src="phantom-core.js?v=20261124-sizes1" defer></script>
+<script src="phantom-d.js?v=20261124-sizes1" defer></script>
 </head>
 <body>
 <header><a href="/">← VSPHERE</a><span>MINIGAME · DETECTIVE CASE 001</span></header>
 <main>
-<section class="hero"><div class="eyebrow">PHANTOM THIEF D · CASE FILE</div><h1>괴도 <span>D</span>를 찾아라</h1><p>값비싼 보물이 사라졌다! 11×11 사건 현장에서 괴도 D의 흔적을 찾아라.<br>먼저 괴도 11명의 위치를 모두 알아내는 탐정이 승리한다. 오답은 3회까지!</p></section>
+<section class="hero"><div class="eyebrow">PHANTOM THIEF D · CASE FILE</div><h1>괴도 <span>D</span>를 찾아라</h1><p>값비싼 보물이 사라졌다! 9×9부터 11×11까지 사건 현장에서 괴도 D의 흔적을 찾아라.<br>먼저 해당 판의 괴도를 모두 검거한 탐정이 승리한다. 오답은 3회까지!</p></section>
 <section class="panel" aria-label="시청자 참여 게임방">
 <h2>🕵️ 탐정 수사본부 · 시청자 참여</h2>
+<div class="size-picker"><label for="sizeSelect">퍼즐 난이도</label>
+<select id="sizeSelect" aria-label="게임판 크기 및 난이도">
+<option value="9">쉬움 · 9×9 (괴도 9명)</option>
+<option value="10">보통 · 10×10 (괴도 10명)</option>
+<option value="11" selected>도전 · 11×11 (괴도 11명)</option>
+</select></div>
 <div id="setup">
 <div class="fields"><label>탐정 닉네임<input id="nick" maxlength="20" placeholder="닉네임" autocomplete="nickname"></label><label>입장할 방 코드<input id="roomInput" maxlength="8" placeholder="8자리 코드" autocapitalize="characters" spellcheck="false"></label></div>
 <div class="actions"><button id="createBtn" class="primary" type="button">방 만들기</button><button id="joinBtn" type="button">코드로 참가</button><button id="soloBtn" type="button">혼자 수사하기</button></div>
@@ -63,23 +75,23 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <div class="actions"><button id="copyBtn" type="button">초대 링크 복사</button><button id="readyBtn" type="button">준비하기</button><button id="startBtn" class="primary" type="button">수사 시작</button><button id="nextBtn" type="button" hidden>다음 사건 준비</button><button id="leaveBtn" type="button">방 나가기</button></div>
 </div>
 <p id="status" class="note" role="status" aria-live="polite">혼자 연습하거나 방을 만들어 친구를 초대하세요.</p>
-<p class="note">※ 멀티플레이는 VSPHERE 계정으로 로그인한 뒤 이용할 수 있어요. <a href="/" target="_blank" rel="noopener">로그인하기</a> · 최대 8명 · 방장이 나가면 방이 종료돼요.</p>
+<p class="note">※ 멀티플레이는 VSPHERE 계정으로 로그인한 뒤 이용할 수 있어요. <a href="/" target="_blank" rel="noopener">로그인하기</a> · 최대 8명 · 방장이 난이도를 선택하면 참가자 전원에게 동일하게 적용돼요. 방장이 나가면 방이 종료돼요.</p>
 </section>
 <div class="play">
 <section class="panel board-panel">
-<div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">검거 <b id="found">0</b> / 11 · 실수 <b id="misses">0</b> / 3 · <b id="clock">00:00</b></span><button id="soundBtn" type="button" aria-pressed="true" style="border:1px solid #6f6880;border-radius:9px;background:#302c43;color:#fff;padding:7px 10px;min-height:36px;cursor:pointer">🔊 효과음 켜짐</button></div>
+<div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">사건 <b id="boardSize">11×11</b> · 검거 <b id="found">0</b> / <b id="foundTotal">11</b> · 실수 <b id="misses">0</b> / 3 · <b id="clock">00:00</b></span><button id="soundBtn" type="button" aria-pressed="true" style="border:1px solid #6f6880;border-radius:9px;background:#302c43;color:#fff;padding:7px 10px;min-height:36px;cursor:pointer">🔊 효과음 켜짐</button></div>
 <div id="board" class="board" role="group" aria-label="괴도 D 11×11 논리 퍼즐"></div>
-<p class="note" style="text-align:center;margin:14px 0">한 번 클릭·탭: <strong>✕ 즉시 표시 / 해제</strong>　|　더블클릭·두 번 탭: <strong>🎩 괴도 지목 (0.5초 이내)</strong><br>누른 채 드래그: <strong>여러 칸 X 표시 또는 지우기</strong> (첫 칸의 상태로 결정)<br>오답을 지목하면 <strong style="color:#ff5268">빨간 X</strong>, 오답 3회로 게임오버가 되면 <strong>정답 위치 11곳이 공개</strong>됩니다.</p>
+<p class="note" style="text-align:center;margin:14px 0">한 번 클릭·탭: <strong>✕ 즉시 표시 / 해제</strong>　|　더블클릭·두 번 탭: <strong>🎩 괴도 지목 (0.5초 이내)</strong><br>누른 채 드래그: <strong>여러 칸 X 표시 또는 지우기</strong> (첫 칸의 상태로 결정)<br>오답을 지목하면 <strong style="color:#ff5268">빨간 X</strong>, 오답 3회로 게임오버가 되면 <strong>해당 판의 정답 위치가 공개</strong>됩니다.</p>
 <div class="game-actions"><button id="clearBtn" type="button">내 X 표시 초기화</button><button id="restartSolo" class="primary" type="button" hidden>새 사건 시작</button></div>
 <div id="result" class="result" hidden><h3 id="resultTitle"></h3><p id="resultDetail"></p></div>
 </section>
 <aside class="panel aside">
 <h3>📜 사건 기록</h3><div class="prize" aria-hidden="true">💎</div>
 <p><strong>사건:</strong> 고가의 보석을 훔친 괴도 D의 이동 흔적이 각 구역에 하나씩 남아 있다.</p>
-<ul><li>각 <strong>가로줄·세로줄</strong>에 괴도는 정확히 한 명</li><li>각 <strong>색깔 구역</strong>에도 정확히 한 명</li><li>괴도끼리는 <strong>대각선으로도 붙을 수 없다</strong></li><li><strong>처음부터 X가 표시되지 않아요.</strong> 색 구역의 크기·모양과 행·열 규칙을 이용하세요.</li><li>괴도 11곳을 <strong>정확히 지목하면 자동으로 사건 해결!</strong></li><li><strong>오답 3회</strong>면 게임오버, 해당 탐정 화면에 괴도 D의 정답 위치 11곳 공개 (다른 참가자는 계속 수사)</li></ul>
-<p>색 구역과 괴도 위치는 매 판 무작위로 달라져요. <strong>22~32칸의 메인 색 구역</strong>과 <strong>한 칸짜리 구역 정확히 1개</strong>, 나머지 중간 크기 구역이 배치되고, 일반소거·묶음소거만으로 해결 가능하도록 만들어져요. 괴도 이미지 4종도 번갈아 나타나요.</p>
+<ul><li>각 <strong>가로줄·세로줄</strong>에 괴도는 정확히 한 명</li><li>각 <strong>색깔 구역</strong>에도 정확히 한 명</li><li>괴도끼리는 <strong>대각선으로도 붙을 수 없다</strong></li><li><strong>처음부터 X가 표시되지 않아요.</strong> 색 구역의 크기·모양과 행·열 규칙을 이용하세요.</li><li>그 판의 괴도를 <strong>모두 정확히 지목하면 자동으로 사건 해결!</strong></li><li><strong>오답 3회</strong>면 게임오버, 해당 탐정 화면에 괴도 D의 해당 판의 정답 위치 공개 (다른 참가자는 계속 수사)</li></ul>
+<p>색 구역과 괴도 위치는 매 판 무작위로 달라져요. <strong>크기별로 균형 잡힌 메인 색 구역</strong>과 <strong>한 칸짜리 구역 정확히 1개</strong>, 나머지 중간 크기 구역이 배치되고, 일반소거·묶음소거만으로 해결 가능하도록 만들어져요. 괴도 이미지 4종도 번갈아 나타나요.</p>
 <p>모바일: 탭은 X 표시·해제, 두 번 탭하면 괴도 지목, 손가락으로 드래그하면 여러 칸 X 표시·삭제<br>PC: 클릭은 X 표시·해제, 더블클릭은 괴도 지목, 드래그는 여러 칸 X 표시·삭제 · 우클릭도 X<br><strong>괴도를 잘못 지목한 횟수만</strong> 오답으로 집계돼요. X 표시 실수는 패널티가 없어요.</p>
-<p>멀티: 모든 참가자가 같은 사건을 각각 풀어요. <strong>가장 먼저 괴도 11명을 전부 검거하면 승리</strong>하고 전원 경기가 끝나요. 오답 3회로 탈락한 사람은 관전할 수 있어요.</p>
+<p>멀티: 모든 참가자가 같은 사건을 각각 풀어요. <strong>가장 먼저 해당 판의 괴도를 전부 검거하면 승리</strong>하고 전원 경기가 끝나요. 오답 3회로 탈락한 사람은 관전할 수 있어요.</p>
 </aside>
 </div>
 </main><footer>VSPHERE · 괴도 D를 찾아라</footer>
