@@ -174,8 +174,21 @@
   else if(connection?.open)connection.send({type:'guess',round,index:i});
   else{pendingGuess=null;say('방 연결을 확인해주세요.',true);}
  }
- function showResult(title,detail){$('result').hidden=false;$('resultTitle').textContent=title;$('resultDetail').textContent=detail;}
- function hideResult(){$('result').hidden=true;}
+ function showClearArt(){
+  const panel=$('clearOverlay');if(!panel)return;
+  panel.hidden=false;panel.classList.remove('is-visible');
+  void panel.offsetWidth;panel.classList.add('is-visible');
+  $('clearClose').focus({preventScroll:true});
+ }
+ function hideClearArt(){
+  const panel=$('clearOverlay');if(panel){panel.hidden=true;panel.classList.remove('is-visible');}
+ }
+ function showResult(title,detail){
+  $('result').hidden=false;$('resultTitle').textContent=title;$('resultDetail').textContent=detail;
+  if(title.includes('사건 해결!')||title.includes('탐정 승리!'))showClearArt();
+  else hideClearArt();
+ }
+ function hideResult(){$('result').hidden=true;hideClearArt();}
  function errorText(err){
   if(err?.code==='permission-denied')return 'Firebase 권한이 거부됐어요. 컬러타일 방 권한 설정을 확인해주세요.';
   if(err?.code==='resource-exhausted')return 'Firebase 무료 이용 한도에 도달했어요.';
@@ -446,6 +459,9 @@
    cancelSingle();soundEngine();guess(i);event.preventDefault();
   }
  });
+ $('clearClose').onclick=hideClearArt;
+ $('clearOverlay').addEventListener('click',event=>{if(event.target===$('clearOverlay'))hideClearArt();});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('clearOverlay').hidden)hideClearArt();});
  setInterval(()=>{if(startedAt&&phase==='playing')updateClock();},500);
  // Color-tiles transport disconnects idle guests after 60 seconds; keep long puzzle sessions alive.
  setInterval(()=>{if(connection?.open&&room&&!isHost)connection.send({type:'ping'});},15000);
