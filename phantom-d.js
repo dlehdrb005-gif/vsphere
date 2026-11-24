@@ -1,7 +1,7 @@
 /* Phantom D: private boards, host-verified race, shared Firebase room transport. */
 'use strict';
 (() => {
- const C=window.PhantomCore,$=id=>document.getElementById(id),PREFIX='vsphere-ct-v1-';
+ let C=window.PhantomCore;const $=id=>document.getElementById(id),PREFIX='vsphere-ct-v1-';
  const CODE=/^[A-HJ-NP-Z2-9]{8}$/;
  const palette=['#e5acd3','#f5be79','#78c88a','#8bc6eb','#b394e0','#e9d668','#61bfb5','#ed998e','#7c98db','#aacb70','#c7b4a5'];
  const assets=['phantom-1.png','phantom-2.png','phantom-3.png','phantom-4.png'];
@@ -55,6 +55,15 @@
  function randomCode(){const abc='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(8))].map(v=>abc[v%abc.length]).join('');}
  function resetMarks(){marks=marks.map(v=>v===3?3:0);for(const i of confirmed)marks[i]=1;updateBoard();}
  function resetRound(){misses=0;eliminated=false;pendingGuess=null;confirmed=new Set();attempted=new Set();lastClick=null;lastGuess=null;stroke=null;revealedSolution=null;clearTimeout(clickTimer);clickTimer=null;marks=Array(C.SIZE).fill(0);}
+ function setBoardSize(size){
+  const n=Number(size);
+  if(![9,10,11].includes(n))return;
+  if(C.N!==n){C=window.PhantomCore.forSize(n);resetRound();}
+  $('board').style.setProperty('--grid-count',String(n));
+  $('board').setAttribute('aria-label',`괴도 D ${n}×${n} 논리 퍼즐`);
+  $('foundTotal').textContent=n;
+  $('boardSize').textContent=`${n}×${n}`;
+ }
  function progress(){return confirmed.size;}
  function canPlay(){return phase==='playing'&&!!boardData&&!eliminated;}
  function renderBoard(){
@@ -81,7 +90,8 @@
   }
  }
  function updateBoard(){
-  renderBoard();$('found').textContent=progress();
+  renderBoard();$('found').textContent=progress();$('foundTotal').textContent=C.N;
+  $('sizeSelect').disabled=room?(!isHost||phase!=='lobby'):(solo&&phase==='playing');
   $('misses').textContent=misses;
   $('misses').style.color=misses>=2?'#ff7e89':'';
   $('clearBtn').disabled=!canPlay();
@@ -118,25 +128,25 @@
   if(eliminated){showResult('⛔ 게임 오버','틀린 위치를 세 번 지목했습니다. 이번 사건은 더 이상 수사할 수 없어요.');
    say('오답 3회! 정답 위치가 공개됐어요. 다른 탐정들의 결과를 기다려주세요.',true);
   }else if(msg.correct){
-   say(`✅ 괴도 D 검거! ${confirmed.size}/11명 발견 · 오답 ${misses}/3`);
+   say(`✅ 괴도 D 검거! ${confirmed.size}/${C.N}명 발견 · 오답 ${misses}/3`);
   }else say(`❌ 해당 칸에는 괴도가 없어요. 오답 ${misses}/3`,true);
  }
  function judge(uid,index,conn=null){
-  if(!room||!isHost||room.phase!=='playing'||!Number.isInteger(index)||index<0||index>=C.SIZE||room.game.clues.includes(index))return;
+  if(!room||!isHost||room.phase!=='playing'||!Number.isInteger(index)||index<0||index>=room.game.size**2||room.game.clues.includes(index))return;
   const p=room.players.get(uid);
   if(!p||p.eliminated)return;
   let guessed=room.guesses.get(uid);
   if(!guessed){guessed=new Set();room.guesses.set(uid,guessed);}
   if(guessed.has(index))return;
   guessed.add(index);
-  const row=Math.floor(index/C.N),correct=room.game.solution[row]===index%C.N;
+  const row=Math.floor(index/room.game.size),correct=room.game.solution[row]===index%room.game.size;
   if(correct)p.found++;else p.misses++;
   if(p.misses>=3)p.eliminated=true;
   const result={type:'guess-result',round:room.round,index,correct,misses:p.misses,found:p.found,eliminated:p.eliminated};
   // Private: only the eliminated player receives the answer during an active round.
   if(p.eliminated)result.solution=room.game.solution.slice();
   if(conn)conn.send(result);else receiveGuess(result);
-  if(correct&&p.found===C.N)win(uid,p.name);
+  if(correct&&p.found===room.game.size)win(uid,p.name);
   else if([...room.players.values()].every(x=>x.eliminated)){room.phase='ended';room.winner=null;broadcast();}
   else broadcast();
  }
@@ -179,18 +189,21 @@
  function playersView(players){
   $('players').replaceChildren();for(const p of players){
    const span=document.createElement('span');span.className='player'+(p.ready?' ready':'')+(winner?.uid===p.uid?' winner':'');
-   span.textContent=(p.host?'👑 ':'')+p.name+(winner?.uid===p.uid?' · 승리':p.eliminated?' · 게임오버':phase==='playing'?` · ${p.found}/11 · 실수 ${p.misses}/3`:p.ready?' · 준비':'');$('players').append(span);
+   span.textContent=(p.host?'👑 ':'')+p.name+(winner?.uid===p.uid?' · 승리':p.eliminated?' · 게임오버':phase==='playing'?` · ${p.found}/${C.N} · 실수 ${p.misses}/3`:p.ready?' · 준비':'');$('players').append(span);
   }
   $('roomCount').textContent=`${players.length} / 8명 참가`;
  }
  function state(){
-  return {type:'state',phase:room.phase,round:room.round,
-   game:room.game?{regions:room.game.regions,clues:room.game.clues,variantOffset:room.game.variantOffset,...(room.phase==='ended'?{solution:room.game.solution.slice()}:{})}:null,
+  return {type:'state',phase:room.phase,round:room.round,size:room.size,
+   game:room.game?{size:room.game.size,regions:room.game.regions,clues:room.game.clues,variantOffset:room.game.variantOffset,...(room.phase==='ended'?{solution:room.game.solution.slice()}:{})}:null,
    startedAt:room.startedAt,winner:room.winner,players:[...room.players.values()]};
  }
  function broadcast(){if(!room||!isHost)return;const message=state();for(const conn of connections.values())if(conn.open)conn.send(message);applyState(message);}
  function applyState(info){
   const changed=round!==info.round||(info.phase==='lobby'&&phase!=='lobby');
+  setBoardSize(info.game?.size||info.size||11);
+  if(room&&Number.isInteger(info.size))room.size=info.size;
+  $('sizeSelect').value=String(info.size||info.game?.size||11);
   room&&(room.phase=info.phase,room.round=info.round,room.startedAt=info.startedAt,room.winner=info.winner);
   if(changed)resetRound();
   round=info.round;phase=info.phase;boardData=info.game;winner=info.winner;startedAt=info.startedAt;
@@ -244,7 +257,7 @@
  }
  function hostSetup(code,playerName){
   roomCode=code;isHost=true;
-  room={phase:'lobby',round:0,game:null,startedAt:0,winner:null,guesses:new Map(),players:new Map([[account.uid,{uid:account.uid,name:playerName,ready:true,host:true,misses:0,found:0,eliminated:false}]])};
+  room={phase:'lobby',size:C.N,round:0,game:null,startedAt:0,winner:null,guesses:new Map(),players:new Map([[account.uid,{uid:account.uid,name:playerName,ready:true,host:true,misses:0,found:0,eliminated:false}]])};
   peer=new FirebaseRoomPeer(PREFIX+code);
   peer.on('open',()=>{setBusy(false);broadcast();say('방을 만들었어요! 초대 링크를 공유해주세요.');});
   peer.on('connection',conn=>{
@@ -256,7 +269,7 @@
   peer.on('error',err=>leave(errorText(err)));
  }
  function guestSetup(code,playerName){
-  roomCode=code;isHost=false;room={phase:'lobby'};peer=new FirebaseRoomPeer(PREFIX+'guest-'+crypto.randomUUID());
+  roomCode=code;isHost=false;room={phase:'lobby',size:C.N};peer=new FirebaseRoomPeer(PREFIX+'guest-'+crypto.randomUUID());
   peer.on('open',()=>{
    connection=peer.connect(PREFIX+code);
    connection.on('open',()=>{connection.send({type:'join',uid:account.uid,name:playerName});say('수사방에 입장하고 있습니다...');});
@@ -280,7 +293,7 @@
   say('새 사건을 생성하는 중...');
   // Yield so the interface can paint before puzzle uniqueness checking.
   setTimeout(()=>{if(!room||!isHost||room.phase!=='lobby')return;
-   try{room.game=C.makePuzzle();room.round++;room.startedAt=Date.now();room.phase='playing';room.winner=null;room.guesses=new Map();
+   try{room.game=window.PhantomCore.forSize(room.size).makePuzzle();room.round++;room.startedAt=Date.now();room.phase='playing';room.winner=null;room.guesses=new Map();
     for(const p of room.players.values()){p.misses=0;p.found=0;p.eliminated=false;}
     broadcast();}
    catch(err){say('문제 생성에 실패했어요. 수사 시작을 다시 눌러주세요.',true);}
@@ -289,10 +302,22 @@
  function soloStart(){
   if(room||busy)return;
   say('단서를 생성하는 중...');
-  setTimeout(()=>{if(room)return;solo=true;boardData=C.makePuzzle();resetRound();round++;
+  setTimeout(()=>{if(room)return;setBoardSize(Number($('sizeSelect').value)||11);solo=true;boardData=C.makePuzzle();resetRound();round++;
    phase='playing';winner=null;startedAt=Date.now();hideResult();updateBoard();say('혼자 수사 중입니다. 11곳의 괴도 D를 찾아보세요.');
   },20);
  }
+ $('sizeSelect').addEventListener('change',()=>{
+  const size=Number($('sizeSelect').value);
+  if(![9,10,11].includes(size))return;
+  if(room){
+   if(!isHost||room.phase!=='lobby')return;
+   room.size=size;setBoardSize(size);broadcast();
+  }else if(solo&&phase==='ended'){
+   setBoardSize(size);soloStart();
+  }else if(!solo&&phase==='waiting'){
+   setBoardSize(size);updateBoard();
+  }
+ });
  $('createBtn').onclick=()=>connect(true);$('joinBtn').onclick=()=>connect(false);
  $('leaveBtn').onclick=()=>leave();$('soloBtn').onclick=()=>{if(solo){hideResult();}soloStart();};
  $('readyBtn').onclick=()=>{if(connection?.open&&phase==='lobby')connection.send({type:'ready'});};
@@ -427,5 +452,5 @@
  try{$('nick').value=localStorage.getItem('vsphere-phantom-name')||'';}catch(_){}
  const invite=new URLSearchParams(location.search).get('room');
  if(invite&&CODE.test(invite.toUpperCase()))$('roomInput').value=invite.toUpperCase();
- renderBoard();updateBoard();
+ setBoardSize(Number($('sizeSelect').value)||11);renderBoard();updateBoard();
 })();
