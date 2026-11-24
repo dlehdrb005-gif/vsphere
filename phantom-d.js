@@ -11,6 +11,7 @@
  let boardData=null,phase='waiting',solo=false,startedAt=0,winner=null,round=0,roomCode='',isHost=false,busy=false,selection=0;
  const connections=new Map();
  let soundEnabled=true,audioContext=null;
+ let clearShownForRound=null;
  try{soundEnabled=localStorage.getItem('vsphere-phantom-sound')!=='off';}catch(_){}
  function soundEngine(){
   if(!soundEnabled)return null;
@@ -25,7 +26,10 @@
  function playSound(kind){
   if(!soundEnabled)return;
   const ctx=soundEngine();if(!ctx)return;
-  const notes=kind==='cross'?[[500,0,.035,'triangle',.035]]:
+  const notes=kind==='clear'?
+   [[523.25,0,.25,'sine',.029],[659.25,.16,.28,'sine',.032],
+    [783.99,.32,.30,'sine',.033],[1046.50,.49,.55,'sine',.039]] :
+   kind==='cross'?[[500,0,.035,'triangle',.035]]:
    kind==='wrong'?[[330,0,.12,'sawtooth',.045],[220,.105,.15,'sawtooth',.040]]:
    [[560,0,.08,'sine',.065],[720,.09,.10,'sine',.075],[980,.20,.16,'sine',.075]];
   for(const [frequency,offset,duration,wave,volume] of notes){
@@ -163,7 +167,7 @@
    receiveGuess(result);
    if(result.eliminated){
     phase='ended';winner=null;updateBoard();
-    showResult('⛔ 게임 오버 · 정답 공개','오답 3회로 수사가 종료됐어요. 괴도 D의 정답 위치 11곳을 확인하고 새 사건에 도전하세요.');
+    showResult('⛔ 게임 오버 · 정답 공개',`오답 3회로 수사가 종료됐어요. 괴도 D의 정답 위치 ${C.N}곳을 확인하고 새 사건에 도전하세요.`);
    }
    if(correct&&confirmed.size===C.N){
     phase='ended';winner={uid:'solo',name:'탐정'};updateBoard();
@@ -176,8 +180,14 @@
  }
  function showClearArt(){
   const panel=$('clearOverlay');if(!panel)return;
+  // This key changes on every solo restart and every multiplayer round.
+  // Repeated multiplayer state broadcasts must not reopen a dismissed result.
+  const clearKey=solo?'solo:'+round:'room:'+roomCode+':'+round;
+  if(clearShownForRound===clearKey)return;
+  clearShownForRound=clearKey;
   panel.hidden=false;panel.classList.remove('is-visible');
   void panel.offsetWidth;panel.classList.add('is-visible');
+  playSound('clear');
   $('clearClose').focus({preventScroll:true});
  }
  function hideClearArt(){
@@ -232,8 +242,10 @@
   $('nextBtn').hidden=!isHost||phase!=='ended';
   $('roomCode').textContent=roomCode;
   $('setup').hidden=true;$('roomControls').hidden=false;
-  hideResult();if(phase==='ended'){
-   showResult(winner?.name?`🏆 ${winner.name} 탐정 승리!`:'⛔ 전원 게임오버 · 정답 공개',winner?'가장 먼저 괴도 D 11곳을 전부 찾아냈어요. 정답 위치도 공개됐어요.':'모든 탐정이 오답 3회로 탈락했어요. 정답 위치 11곳을 확인하세요.');
+  // Never dismiss an already shown victory overlay on repeated ended broadcasts.
+  if(phase!=='ended')hideResult();
+  if(phase==='ended'){
+   showResult(winner?.name?`🏆 ${winner.name} 탐정 승리!`:'⛔ 전원 게임오버 · 정답 공개',winner?`가장 먼저 괴도 D ${C.N}곳을 전부 찾아냈어요. 정답 위치도 공개됐어요.`:`모든 탐정이 오답 3회로 탈락했어요. 정답 위치 ${C.N}곳을 확인하세요.`);
    say(winner?'사건 해결! 방장이 다음 사건을 준비할 수 있습니다.':'전원 게임오버! 방장이 다음 사건을 준비할 수 있습니다.');
   }else if(phase==='playing'){
    if(eliminated){showResult('⛔ 게임 오버 · 정답 공개','틀린 위치를 세 번 지목했어요. 괴도 D의 정답 위치가 공개됐습니다. 다른 탐정들의 수사를 관전할 수 있습니다.');say('오답 3회로 탈락했습니다. 현재 다른 탐정들의 수사 진행을 볼 수 있어요.',true);}
@@ -316,7 +328,7 @@
   if(room||busy)return;
   say('단서를 생성하는 중...');
   setTimeout(()=>{if(room)return;setBoardSize(Number($('sizeSelect').value)||11);solo=true;boardData=C.makePuzzle();resetRound();round++;
-   phase='playing';winner=null;startedAt=Date.now();hideResult();updateBoard();say('혼자 수사 중입니다. 11곳의 괴도 D를 찾아보세요.');
+   phase='playing';winner=null;startedAt=Date.now();hideResult();updateBoard();say(`혼자 수사 중입니다. ${C.N}곳의 괴도 D를 찾아보세요.`);
   },20);
  }
  $('sizeSelect').addEventListener('change',()=>{
