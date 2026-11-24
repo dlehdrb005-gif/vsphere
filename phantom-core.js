@@ -116,31 +116,36 @@ function logicalSolve(regions,clues=[],audit=false){
     for(const i of units[b])if(!units[a].includes(i)&&remove(i)){changed=true;operations++;}
    }
   }
-  // Grouping (묶음소거): if 2 or 3 rows/columns/regions claim exactly
-  // the same number of opposite units, exclude those units elsewhere.
-  for(let sourceFamily=0;sourceFamily<3;sourceFamily++)for(let targetFamily=0;targetFamily<3;targetFamily++){
-   if(sourceFamily===targetFamily)continue;
-   const offset=sourceFamily*N,targetOffset=targetFamily*N;
-   const masks=Array.from({length:N},(_,a)=>{
-    let mask=0;
-    for(const i of units[offset+a])if(allowed[i])mask|=1<<(targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i]);
-    return mask;
-   });
-   function eliminate(group,mask){
-    if(mask.toString(2).replace(/0/g,'').length!==group.length)return false;
-    let made=false;
-    reason=group.length===2?'pair':'triple';reasonUnits=[sourceFamily,targetFamily,...group];
-    for(let i=0;i<SIZE;i++)if(allowed[i]){
-     const source=sourceFamily===0?Math.floor(i/N):sourceFamily===1?i%N:regions[i];
-     const target=targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i];
-     if(!group.includes(source)&&(mask&(1<<target))&&remove(i)){made=true;operations++;}
+  // Apply elementary deductions to a fixed point before considering sets.
+  // Prefer intuitive 2:2 combinations; require 3:3 only if no simpler move works.
+  if(changed)continue;
+  for(const groupSize of [2,3]){
+   for(let sourceFamily=0;sourceFamily<3;sourceFamily++)for(let targetFamily=0;targetFamily<3;targetFamily++){
+    if(sourceFamily===targetFamily)continue;
+    const offset=sourceFamily*N;
+    const masks=Array.from({length:N},(_,a)=>{
+     let mask=0;
+     for(const i of units[offset+a])if(allowed[i])
+      mask|=1<<(targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i]);
+     return mask;
+    });
+    function eliminate(group,mask){
+     if(mask.toString(2).replace(/0/g,'').length!==groupSize)return false;
+     let made=false;
+     reason=groupSize===2?'pair':'triple';reasonUnits=[sourceFamily,targetFamily,...group];
+     for(let i=0;i<SIZE;i++)if(allowed[i]){
+      const source=sourceFamily===0?Math.floor(i/N):sourceFamily===1?i%N:regions[i];
+      const target=targetFamily===0?Math.floor(i/N):targetFamily===1?i%N:regions[i];
+      if(!group.includes(source)&&(mask&(1<<target))&&remove(i)){made=true;operations++;}
+     }
+     return made;
     }
-    return made;
+    for(let a=0;a<N;a++)for(let b=a+1;b<N;b++){
+     if(groupSize===2){if(eliminate([a,b],masks[a]|masks[b]))changed=true;}
+     else for(let c=b+1;c<N;c++)if(eliminate([a,b,c],masks[a]|masks[b]|masks[c]))changed=true;
+    }
    }
-   for(let a=0;a<N;a++)for(let b=a+1;b<N;b++){
-    if(eliminate([a,b],masks[a]|masks[b]))changed=true;
-    for(let c=b+1;c<N;c++)if(eliminate([a,b,c],masks[a]|masks[b]|masks[c]))changed=true;
-   }
+   if(changed)break;
   }
   if(!changed)break;
  }
