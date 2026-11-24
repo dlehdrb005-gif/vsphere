@@ -50,9 +50,9 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <script src="color-tiles-firebase.js" defer></script>
 <script src="phantom-bank.js?v=20261123-balanced3" defer></script>
 <script src="phantom-size-bank.js?v=20261124-sizes1" defer></script>
-<script src="phantom-beginner-bank.js?v=20261124-easylogic1" defer></script>
-<script src="phantom-core.js?v=20261124-easylogic1" defer></script>
-<script src="phantom-d.js?v=20261124-easylogic1" defer></script>
+<script src="phantom-beginner-bank.js?v=20261124-easylogic2" defer></script>
+<script src="phantom-core.js?v=20261124-easylogic2" defer></script>
+<script src="phantom-d.js?v=20261124-easylogic2" defer></script>
 </head>
 <body>
 <header><a href="/">← VSPHERE</a><span>MINIGAME · DETECTIVE CASE 001</span></header>
@@ -62,9 +62,9 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 <h2>🕵️ 탐정 수사본부 · 시청자 참여</h2>
 <div class="size-picker"><label for="sizeSelect">퍼즐 난이도</label>
 <select id="sizeSelect" aria-label="게임판 크기 및 난이도">
-<option value="9">쉬움 · 9×9 (괴도 9명)</option>
+<option value="9" selected>쉬움 · 9×9 (괴도 9명)</option>
 <option value="10">보통 · 10×10 (괴도 10명)</option>
-<option value="11" selected>도전 · 11×11 (괴도 11명)</option>
+<option value="11">도전 · 11×11 (괴도 11명)</option>
 </select></div>
 <div id="setup">
 <div class="fields"><label>탐정 닉네임<input id="nick" maxlength="20" placeholder="닉네임" autocomplete="nickname"></label><label>입장할 방 코드<input id="roomInput" maxlength="8" placeholder="8자리 코드" autocapitalize="characters" spellcheck="false"></label></div>
@@ -80,8 +80,8 @@ footer{text-align:center;color:#9999b5;padding:20px;font-size:12px}
 </section>
 <div class="play">
 <section class="panel board-panel">
-<div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">사건 <b id="boardSize">11×11</b> · 검거 <b id="found">0</b> / <b id="foundTotal">11</b> · 실수 <b id="misses">0</b> / 3 · <b id="clock">00:00</b></span><button id="soundBtn" type="button" aria-pressed="true" style="border:1px solid #6f6880;border-radius:9px;background:#302c43;color:#fff;padding:7px 10px;min-height:36px;cursor:pointer">🔊 효과음 켜짐</button></div>
-<div id="board" class="board" role="group" aria-label="괴도 D 11×11 논리 퍼즐"></div>
+<div class="board-head"><span id="phase" class="phase">사건 접수 대기</span><span class="stat">사건 <b id="boardSize">9×9</b> · 검거 <b id="found">0</b> / <b id="foundTotal">9</b> · 실수 <b id="misses">0</b> / 3 · <b id="clock">00:00</b></span><button id="soundBtn" type="button" aria-pressed="true" style="border:1px solid #6f6880;border-radius:9px;background:#302c43;color:#fff;padding:7px 10px;min-height:36px;cursor:pointer">🔊 효과음 켜짐</button></div>
+<div id="board" class="board" role="group" aria-label="괴도 D 9×9 논리 퍼즐"></div>
 <p class="note" style="text-align:center;margin:14px 0">한 번 클릭·탭: <strong>✕ 즉시 표시 / 해제</strong>　|　더블클릭·두 번 탭: <strong>🎩 괴도 지목 (0.5초 이내)</strong><br>누른 채 드래그: <strong>여러 칸 X 표시 또는 지우기</strong> (첫 칸의 상태로 결정)<br>오답을 지목하면 <strong style="color:#ff5268">빨간 X</strong>, 오답 3회로 게임오버가 되면 <strong>해당 판의 정답 위치가 공개</strong>됩니다.</p>
 <div class="game-actions"><button id="clearBtn" type="button">내 X 표시 초기화</button><button id="restartSolo" class="primary" type="button" hidden>새 사건 시작</button></div>
 <div id="result" class="result" hidden><h3 id="resultTitle"></h3><p id="resultDetail"></p></div>
