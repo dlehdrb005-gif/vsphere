@@ -1,7 +1,8 @@
-/* 11 x 11 Phantom D puzzle generator and validator. No fixed layouts. */
+/* Phantom D: validated 9x9 / 10x10 / 11x11 puzzle solvers. */
 (function(root){
 'use strict';
-const N=11,SIZE=N*N,rand=n=>Math.floor(Math.random()*n);
+function createSolver(size){
+const N=size,SIZE=N*N,rand=n=>Math.floor(Math.random()*n);
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
 function solutionCount(regions,clues=[],limit=2){
  const forbidden=new Set(clues);let count=0;
@@ -110,13 +111,20 @@ function validShape(board,answer){
  if(!Array.isArray(board)||board.length!==SIZE||!Array.isArray(answer)||answer.length!==N)return false;
  const counts=Array(N).fill(0),seeds=Array(N).fill(-1);
  for(const g of board){if(!Number.isInteger(g)||g<0||g>=N)return false;counts[g]++;}
- if(counts.filter(v=>v===1).length!==1||counts.filter(v=>v>=22&&v<=32).length!==1||counts.filter(v=>v>=8&&v<=13).length!==9)return false;
+ if(counts.filter(v=>v===1).length!==1)return false;
+ if(N===11){
+  if(counts.filter(v=>v>=22&&v<=32).length!==1||counts.filter(v=>v>=8&&v<=13).length!==9)return false;
+ }else{
+  const sorted=[...counts].sort((a,b)=>a-b),largest=sorted[N-1],second=sorted[N-2];
+  if(N===9&&(sorted[1]<4||largest<16||largest>27||second>16))return false;
+  if(N===10&&(sorted[1]<5||largest<22||largest>33||second>18))return false;
+ }
  if(!isSolved(answer,board,[]))return false;
  for(let r=0;r<N;r++)seeds[board[r*N+answer[r]]]=r*N+answer[r];
  return seeds.every((seed,g)=>seed>=0&&connectedColor(board,g,seed));
 }
 function transformLayout(layout){
- if(typeof layout!=='string'||!/^[0-9a]{121}$/.test(layout))throw Error('퍼즐 원본 형식 오류');
+ if(typeof layout!=='string'||layout.length!==SIZE||!/^[0-9a-z]+$/.test(layout))throw Error('퍼즐 원본 형식 오류');
  const mirror=rand(2),turns=rand(4),remap=shuffle(Array.from({length:N},(_,i)=>i));
  const out=Array(SIZE);
  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
@@ -145,17 +153,17 @@ function varyBorders(board,answer){
  }
 }
 function makePuzzle(){
- const bank=root.PhantomPuzzleBank;
+ const bank=N===11?root.PhantomPuzzleBank:root.PhantomSizeBanks?.[N];
  if(!Array.isArray(bank)||!bank.length)throw Error('검증된 퍼즐 원본 파일이 없습니다.');
  let i=rand(bank.length);if(bank.length>1&&i===lastBase)i=(i+1+rand(bank.length-1))%bank.length;
  lastBase=i;
  const regions=transformLayout(bank[i]),deduced=logicalSolve(regions,[]);
  if(!deduced.solved||!validShape(regions,deduced.solution))throw Error('원본 퍼즐 검사 실패');
  const solution=deduced.solution;
- varyBorders(regions,solution);
+ if(N===11)varyBorders(regions,solution);
  if(!validShape(regions,solution)||!logicalSolve(regions,[]).solved||solutionCount(regions,[],2)!==1)
   throw Error('변형 퍼즐 검사 실패');
- return {solution,regions,clues:[],variantOffset:rand(4),difficulty:'easy-normal'};
+ return {size:N,solution,regions,clues:[],variantOffset:rand(4),difficulty:N===9?'easy':N===10?'normal':'advanced'};
 }
 function isSolved(cols,regions,clues=[]){
  if(!Array.isArray(cols)||cols.length!==N||!Array.isArray(regions)||regions.length!==SIZE)return false;
@@ -168,6 +176,16 @@ function isSolved(cols,regions,clues=[]){
  }
  return usedCols.size===N&&usedRegions.size===N;
 }
-const api={N,SIZE,makePuzzle,isSolved,solutionCount,logicalSolve};
-if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.PhantomCore=api;
+
+return {N,SIZE,makePuzzle,isSolved,solutionCount,logicalSolve};
+}
+const modes=new Map();
+function forSize(size){
+ if(![9,10,11].includes(size))throw Error('지원하지 않는 게임판 크기입니다.');
+ if(!modes.has(size))modes.set(size,createSolver(size));
+ return modes.get(size);
+}
+const primary=forSize(11);
+primary.forSize=forSize;
+if(typeof module!=='undefined'&&module.exports)module.exports=primary;else root.PhantomCore=primary;
 })(typeof window!=='undefined'?window:globalThis);
